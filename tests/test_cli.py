@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from inventura.cli import app
@@ -48,8 +49,8 @@ def test_import_with_errors_exits_1_and_writes_report(
         ],
     )
     assert result.exit_code == 1
-    assert "2 valid, 7 with errors, 2 blank skipped" in result.output
-    assert "... 4 more" in result.output
+    assert "2 valid, 10 with errors, 2 blank skipped" in result.output
+    assert "... 7 more" in result.output
     assert report.exists()
 
 
@@ -69,3 +70,82 @@ def test_import_invalid_mapping_exits_2(tmp_path: Path, fixtures_dir: Path) -> N
     )
     assert result.exit_code == 2
     assert "Invalid column mapping" in result.output
+
+
+def test_sheets_writes_xlsx_and_html(tmp_path: Path, mapping_path: Path) -> None:
+    export = tmp_path / "stock.csv"
+    runner.invoke(app, ["generate", "-o", str(export), "--materials", "40"])
+    out = tmp_path / "sheets"
+    result = runner.invoke(
+        app,
+        [
+            "sheets",
+            str(export),
+            "-o",
+            str(out),
+            "--date",
+            "2026-09-28",
+            "--mapping",
+            str(mapping_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (out / "count_sheets.xlsx").exists()
+    html = (out / "count_sheets.html").read_text(encoding="utf-8")
+    assert "Datum: 28. 9. 2026" in html
+    assert "Wrote 12 of 12 count documents" in result.output
+
+
+def test_sheets_for_selected_racks(tmp_path: Path, mapping_path: Path) -> None:
+    export = tmp_path / "stock.csv"
+    runner.invoke(app, ["generate", "-o", str(export), "--materials", "200"])
+    out = tmp_path / "sheets"
+    args = ["sheets", str(export), "-o", str(out), "--mapping", str(mapping_path)]
+    result = runner.invoke(app, [*args, "-r", "k2", "-r", "B06"])
+    assert result.exit_code == 0, result.output
+    assert "Wrote 2 of 12 count documents" in result.output
+    html = (out / "count_sheets.html").read_text(encoding="utf-8")
+    assert html.index("regal B6") < html.index("regal K2")
+
+
+@pytest.mark.parametrize(
+    ("rack", "message"), [("B99", "no stock in rack B99"), ("6B", "invalid rack")]
+)
+def test_sheets_rejects_unknown_rack(
+    tmp_path: Path, mapping_path: Path, fixtures_dir: Path, rack: str, message: str
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "sheets",
+            str(fixtures_dir / "stock_english_headers.csv"),
+            "-o",
+            str(tmp_path),
+            "-r",
+            rack,
+            "--mapping",
+            str(mapping_path),
+        ],
+    )
+    assert result.exit_code == 2
+    assert message in result.output
+
+
+def test_sheets_refuses_export_with_errors(
+    tmp_path: Path, mapping_path: Path, fixtures_dir: Path
+) -> None:
+    out = tmp_path / "sheets"
+    result = runner.invoke(
+        app,
+        [
+            "sheets",
+            str(fixtures_dir / "stock_errors.csv"),
+            "-o",
+            str(out),
+            "--mapping",
+            str(mapping_path),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Fix the errors above" in result.output
+    assert not out.exists()

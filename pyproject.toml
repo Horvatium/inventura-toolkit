@@ -8,6 +8,7 @@ authors = [{ name = "Vid", email = "horvatium@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "faker>=40.39.0",
+    "jinja2>=3.1.6",
     "openpyxl>=3.1.5",
     "pandas>=3.0.6",
     "pydantic>=2.13.5",
@@ -55,6 +56,8 @@ select = [
     "PTH", # flake8-use-pathlib
     "RUF", # ruff-specific rules
 ]
+# The en dash is correct Slovenian typography in titles such as "Popisni list – regal B6".
+allowed-confusables = ["–"]
 
 [tool.mypy]
 python_version = "3.12"

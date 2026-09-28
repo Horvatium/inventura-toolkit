@@ -2,6 +2,7 @@ from decimal import Decimal
 
 import pytest
 
+from inventura.core.locations import parse_location
 from inventura.core.numbers import NumberFormat
 from inventura.core.stock import (
     RawRecord,
@@ -35,7 +36,7 @@ def validate(*records: RawRecord) -> ValidationResult:
 
 
 def test_valid_row_is_converted() -> None:
-    result = validate(record(sarza=" L01-0001 ", kolicina="1.234,5", cena_na_enoto="12,3"))
+    result = validate(record(sarza=" L01-0001 ", kolicina="1.234", cena_na_enoto="12,3"))
     assert result.is_valid
     assert result.rows == (
         StockRow(
@@ -43,9 +44,9 @@ def test_valid_row_is_converted() -> None:
             sifra="0001234",
             opis="Vijak M8x40",
             merska_enota="kos",
-            lokacija="B6-1-1",
+            lokacija=parse_location("B6-1-1"),
             sarza="L01-0001",
-            kolicina=Decimal("1234.500"),
+            kolicina=Decimal("1234.000"),
             cena_na_enoto=Decimal("12.30"),
         ),
     )
@@ -87,10 +88,15 @@ def test_required_fields(field: StockField) -> None:
     ("field", "value", "message"),
     [
         (F.KOLICINA, "-1", "must not be negative"),
-        (F.KOLICINA, "1,2345", "must have at most 3 decimals and 11 digits"),
-        (F.KOLICINA, "100.000.000.000", "must have at most 3 decimals and 11 digits"),
+        (F.KOLICINA, "1,5", "quantity in 'kos' must be a whole number"),
+        (F.KOLICINA, "100.000.000.000", "is too large"),
         (F.KOLICINA, "abc", "not a valid number"),
-        (F.CENA_NA_ENOTO, "0,005", "must have at most 2 decimals and 12 digits"),
+        (F.CENA_NA_ENOTO, "0,005", "must have at most 2 decimals"),
+        (
+            F.LOKACIJA,
+            "B6-1",
+            "invalid location, expected RACK-LEVEL-POSITION such as B6-1-1 or K2-03-11",
+        ),
         (F.CENA_NA_ENOTO, "-0,50", "must not be negative"),
         (F.SIFRA, "X" * 41, "longer than 40 characters"),
         (F.OPIS, "X" * 201, "longer than 200 characters"),
@@ -124,6 +130,27 @@ def test_duplicate_material_location_batch_is_an_error() -> None:
     assert error.message == "duplicate of row 2 (same material, location and batch)"
 
 
+def test_duplicate_location_written_with_leading_zeros() -> None:
+    result = validate(record(lokacija="K2-03-11"), record(lokacija="K2-3-11"))
+    assert [e.row_number for e in result.errors] == [3]
+    assert result.errors[0].message.startswith("duplicate of row 2")
+
+
+@pytest.mark.parametrize(
+    ("unit", "quantity", "message"),
+    [
+        ("m", "12,5", None),
+        ("l", "0,5", None),
+        ("m", "12,55", "quantity in 'm' may have at most 1 decimal"),
+        ("kg", "2,5", "quantity in 'kg' must be a whole number"),
+        ("kos", "3,0", None),
+    ],
+)
+def test_quantity_decimals_depend_on_unit(unit: str, quantity: str, message: str | None) -> None:
+    result = validate(record(merska_enota=unit, kolicina=quantity))
+    assert [e.message for e in result.errors] == ([message] if message else [])
+
+
 def test_same_material_in_other_batch_or_location_is_valid() -> None:
     result = validate(record(), record(sarza="L1"), record(sarza="L2"), record(lokacija="K1-01-01"))
     assert result.is_valid
@@ -144,7 +171,7 @@ def test_invalid_row_does_not_block_later_duplicates_check() -> None:
 
 
 def test_numeric_cells_from_xlsx() -> None:
-    result = validate(record(sifra=1234.0, kolicina=12.5, cena_na_enoto=3))
+    result = validate(record(sifra=1234.0, merska_enota="m", kolicina=12.5, cena_na_enoto=3))
     row = result.rows[0]
     assert (row.sifra, row.kolicina, row.cena_na_enoto) == (
         "1234",

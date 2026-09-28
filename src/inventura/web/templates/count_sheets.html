@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Popisni listi · {{ created }}</title>
+<style>
+  :root {
+    --ink: #1c1c1c;
+    --muted: #5f6368;
+    --line: #9aa0a6;
+    --level-line: #1c1c1c;
+    --head: #eceff1;
+    --count: #fff7d6;
+    --paper: #ffffff;
+    --page: #f1f3f4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 13px/1.35 system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 16px;
+    background: var(--ink);
+    color: #fff;
+    z-index: 1;
+  }
+  .toolbar button {
+    font: inherit;
+    padding: 6px 14px;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .sheet {
+    max-width: 210mm;
+    margin: 16px auto;
+    padding: 12mm 10mm;
+    background: var(--paper);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+  }
+  .sheet.wide { max-width: 297mm; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  .meta { color: var(--muted); margin: 0 0 10px; }
+  .sign {
+    display: flex;
+    gap: 32px;
+    margin: 0 0 12px;
+  }
+  .sign span {
+    flex: 1;
+    border-bottom: 1px solid var(--ink);
+    padding-top: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  thead { display: table-header-group; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 4px 6px;
+    text-align: left;
+    vertical-align: middle;
+  }
+  th { background: var(--head); font-weight: 600; }
+  td { height: 9mm; }
+  tr { break-inside: avoid; }
+  tr.new-level td { border-top: 2px solid var(--level-line); }
+  .num, .book { text-align: right; white-space: nowrap; }
+  .loc, .code { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .count { background: var(--count); width: 26mm; }
+  .note { width: 40mm; }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+  @page wide { size: A4 landscape; }
+
+  @media print {
+    body { background: none; font-size: 11px; }
+    .toolbar { display: none; }
+    .sheet {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+      break-after: page;
+    }
+    .sheet:last-of-type { break-after: auto; }
+    .sheet.wide { page: wide; }
+    th { background: var(--head) !important; print-color-adjust: exact; }
+    .count { background: none; }
+  }
+
+  @media (max-width: 600px) {
+    .sheet { margin: 0; padding: 16px; box-shadow: none; }
+    .table-wrap { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Natisni</button>
+  <span>{{ documents | length }} od {{ total_documents }} popisnih listov · {{ created }}</span>
+</div>
+{% for document in documents %}
+<section class="sheet{{ ' wide' if show_book_quantity }}">
+  <header>
+    <h1>{{ title(document) }}</h1>
+    <p class="meta">
+      Dokument {{ document.number }} od {{ total_documents }} · Datum: {{ created }} ·
+      Postavk: {{ document.items | length }} · Lokacij: {{ document.locations | length }}
+    </p>
+    <div class="sign"><span>Števec:</span><span>Podpis:</span></div>
+  </header>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        {% for column in columns %}
+        <th>{{ column.title }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% set level_starts = new_level(document.items) %}
+      {% for item in document.items %}
+      <tr{% if level_starts[loop.index0] %} class="new-level"{% endif %}>
+        <td class="num">{{ loop.index }}</td>
+        <td class="loc">{{ item.lokacija }}</td>
+        <td class="code">{{ item.sifra }}</td>
+        <td>{{ item.opis }}</td>
+        <td class="code">{{ item.sarza or "" }}</td>
+        <td>{{ item.merska_enota }}</td>
+        {% if show_book_quantity %}
+        <td class="book">{{ item | quantity }}</td>
+        {% endif %}
+        <td class="count"></td>
+        <td class="note"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endfor %}
+</body>
+</html>

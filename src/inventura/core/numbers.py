@@ -35,13 +35,13 @@ class NumberFormat:
     def pattern(self) -> re.Pattern[str]:
         decimal = re.escape(self.decimal_separator)
         if self.thousands_separator is None:
-            integer = r"\d+"
+            integer = r"[0-9]+"
         else:
             # Grouped digits must come in threes, so "1.5" is rejected rather than read as 15
             # when the thousands separator is a dot.
             thousands = re.escape(self.thousands_separator)
-            integer = rf"\d{{1,3}}(?:{thousands}\d{{3}})+|\d+"
-        return re.compile(rf"^([+-]?)({integer})(?:{decimal}(\d+))?$")
+            integer = rf"[0-9]{{1,3}}(?:{thousands}[0-9]{{3}})+|[0-9]+"
+        return re.compile(rf"^([+-]?)({integer})(?:{decimal}([0-9]+))?$")
 
 
 def parse_decimal(value: object, number_format: NumberFormat) -> Decimal:
@@ -78,8 +78,13 @@ def _parse_text(value: str, number_format: NumberFormat) -> Decimal:
     return Decimal(digits)
 
 
+def has_at_most_places(value: Decimal, places: int) -> bool:
+    """True if value has no non-zero digits beyond the given decimal places (1.50 has 1)."""
+    return value == value.quantize(Decimal(1).scaleb(-places))
+
+
 def fits_numeric(value: Decimal, precision: int, scale: int) -> bool:
     """True if value is storable in SQL ``Numeric(precision, scale)`` without rounding."""
     if abs(value) >= Decimal(10) ** (precision - scale):
         return False
-    return value == value.quantize(Decimal(1).scaleb(-scale))
+    return has_at_most_places(value, scale)

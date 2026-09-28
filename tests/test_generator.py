@@ -6,6 +6,7 @@ import pytest
 
 from inventura.core.numbers import NumberFormat
 from inventura.core.stock import StockField, validate_stock_rows
+from inventura.core.units import is_valid_quantity
 from inventura.generator import (
     EXPORT_HEADERS,
     ExportRow,
@@ -53,6 +54,11 @@ def test_material_attributes_are_consistent(rows: list[ExportRow]) -> None:
     assert all(len(attributes) == 1 for attributes in by_code.values())
 
 
+def test_quantities_follow_unit_decimals(rows: list[ExportRow]) -> None:
+    assert all(is_valid_quantity(row.kolicina, row.merska_enota) for row in rows)
+    assert any(row.kolicina != row.kolicina.to_integral_value() for row in rows)
+
+
 def test_batches_and_zero_stock_occur(rows: list[ExportRow]) -> None:
     assert any(row.sarza for row in rows)
     assert any(row.sarza is None for row in rows)
@@ -96,7 +102,7 @@ def test_written_file_imports_back_unchanged(
     assert report.result.errors == ()
     assert set(report.columns.values()) == set(EXPORT_HEADERS.values())
     imported = [
-        (r.sifra, r.opis, r.merska_enota, r.lokacija, r.sarza, r.kolicina, r.cena_na_enoto)
+        (r.sifra, r.opis, r.merska_enota, str(r.lokacija), r.sarza, r.kolicina, r.cena_na_enoto)
         for r in report.result.rows
     ]
     expected = [

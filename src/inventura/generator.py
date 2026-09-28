@@ -18,6 +18,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from inventura.core.stock import StockField
+from inventura.core.units import quantity_decimals
+from inventura.io.formats import MONEY_NUMBER_FORMAT, quantity_number_format
 
 # Headers of the generated export; config/column_mapping.yaml accepts them.
 EXPORT_HEADERS: dict[StockField, str] = {
@@ -73,8 +75,7 @@ DEFAULT_LAYOUT = (
 class _Category:
     unit: str
     price_range: tuple[str, str]  # euros, sampled log-uniformly
-    quantity_range: tuple[int, int]  # in units of 10**-decimals
-    decimals: int
+    quantity_range: tuple[int, int]  # in steps of the unit's smallest countable amount
     batch_share: float
     describe: Callable[[random.Random], str]
 
@@ -104,7 +105,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("0.02", "1.80"),
         (50, 5000),
-        0,
         0.0,
         lambda rng: (
             f"Vijak šestrobi DIN 933 {rng.choice(_THREADS)}x{rng.choice(_BOLT_LENGTHS)} "
@@ -115,7 +115,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("0.01", "0.90"),
         (100, 8000),
-        0,
         0.0,
         lambda rng: f"Matica DIN 934 {rng.choice(_THREADS)} {rng.choice(_FINISHES)}",
     ),
@@ -123,7 +122,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("0.01", "0.40"),
         (100, 10000),
-        0,
         0.0,
         lambda rng: f"Podložka DIN 125 {rng.choice(_THREADS)} {rng.choice(_FINISHES)}",
     ),
@@ -131,7 +129,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("3.50", "95.00"),
         (1, 60),
-        0,
         0.0,
         lambda rng: f"Ležaj kroglični {rng.choice(_BEARINGS)}-{rng.choice(('2RS', 'ZZ'))}",
     ),
@@ -139,7 +136,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("0.08", "4.50"),
         (5, 400),
-        0,
         0.3,
         lambda rng: (
             f"O-tesnilo {rng.randint(5, 120)}x{rng.choice(('1,5', '2', '2,5', '3', '4'))} "
@@ -150,7 +146,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "m",
         ("0.35", "14.00"),
         (10, 5000),
-        1,
         0.0,
         lambda rng: f"Kabel {rng.choice(_CABLES)} {rng.choice(_CABLE_SIZES)} mm2",
     ),
@@ -158,7 +153,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "m",
         ("0.80", "22.00"),
         (10, 1500),
-        1,
         0.0,
         lambda rng: (
             f"Cev {rng.choice(('PVC', 'PU', 'PE', 'silikonska'))} "
@@ -168,16 +162,14 @@ _CATEGORIES: tuple[_Category, ...] = (
     _Category(
         "kg",
         ("4.00", "38.00"),
-        (500, 180000),
-        3,
+        (1, 180),
         1.0,
         lambda rng: f"Mast {rng.choice(('litijeva EP2', 'za ležaje NLGI 2', 'silikonska'))}",
     ),
     _Category(
         "l",
         ("2.50", "19.00"),
-        (1000, 400000),
-        3,
+        (10, 4000),
         1.0,
         lambda rng: (
             f"Olje {rng.choice(('hidravlično HLP', 'reduktorsko CLP', 'kompresorsko VDL'))} "
@@ -188,7 +180,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("6.00", "45.00"),
         (1, 80),
-        0,
         1.0,
         lambda rng: (
             f"Lepilo za navoje {rng.choice(('srednje trdno', 'visoko trdno', 'nizko trdno'))} "
@@ -199,7 +190,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "par",
         ("0.60", "18.00"),
         (10, 600),
-        0,
         0.0,
         lambda rng: (
             f"Rokavice zaščitne {rng.choice(('nitril', 'usnjene', 'protiurezne'))} "
@@ -210,7 +200,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("0.40", "65.00"),
         (1, 200),
-        0,
         0.0,
         lambda rng: rng.choice(
             (
@@ -225,7 +214,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "kos",
         ("5.00", "140.00"),
         (1, 40),
-        0,
         0.0,
         lambda rng: (
             f"Filter {rng.choice(('zraka', 'olja', 'hidravlični'))} "
@@ -236,7 +224,6 @@ _CATEGORIES: tuple[_Category, ...] = (
         "pak",
         ("1.20", "35.00"),
         (1, 120),
-        0,
         0.0,
         lambda rng: rng.choice(
             (
@@ -330,9 +317,9 @@ def write_xlsx(rows: Sequence[ExportRow], path: Path) -> None:
                 row.cena_na_enoto,
             ]
         )
-    for cells in sheet.iter_rows(min_row=2, min_col=6, max_col=7):
-        cells[0].number_format = "#,##0.###"
-        cells[1].number_format = "#,##0.00"
+    for row, cells in zip(rows, sheet.iter_rows(min_row=2, min_col=6, max_col=7), strict=True):
+        cells[0].number_format = quantity_number_format(row.merska_enota)
+        cells[1].number_format = MONEY_NUMBER_FORMAT
     for column, width in zip("ABCDEFG", (14, 48, 6, 12, 14, 12, 14), strict=True):
         sheet.column_dimensions[column].width = width
     sheet.freeze_panes = "A2"
@@ -350,7 +337,7 @@ def _quantity(rng: random.Random, category: _Category) -> Decimal:
     # A few bins are booked with zero stock, as real exports sometimes are.
     if rng.random() < 0.02:
         return Decimal(0)
-    return Decimal(rng.randint(*category.quantity_range)).scaleb(-category.decimals)
+    return Decimal(rng.randint(*category.quantity_range)).scaleb(-quantity_decimals(category.unit))
 
 
 def _batch(fake: Faker) -> str:

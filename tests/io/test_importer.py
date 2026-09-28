@@ -16,7 +16,7 @@ def test_csv_with_errors_reports_them_by_row(mapping: ColumnMapping, fixtures_di
     report = import_stock_file(fixtures_dir / "stock_errors.csv", mapping)
     result = report.result
 
-    assert report.data_rows == 11
+    assert report.data_rows == 14
     assert [row.row_number for row in result.rows] == [2, 12]
     assert result.rows[1].kolicina == Decimal("1250.500")
     assert result.skipped_blank_rows == 2
@@ -28,6 +28,9 @@ def test_csv_with_errors_reports_them_by_row(mapping: ColumnMapping, fixtures_di
         (8, None),
         (9, F.MERSKA_ENOTA),
         (10, F.KOLICINA),
+        (13, F.LOKACIJA),
+        (14, None),
+        (15, F.KOLICINA),
     ]
 
 
@@ -41,9 +44,9 @@ def test_csv_with_other_header_names(mapping: ColumnMapping, fixtures_dir: Path)
     report = import_stock_file(fixtures_dir / "stock_english_headers.csv", mapping)
     assert report.result.is_valid
     assert F.SARZA not in report.columns
-    assert [(r.sifra, r.lokacija, r.kolicina) for r in report.result.rows] == [
+    assert [(r.sifra, str(r.lokacija), r.kolicina) for r in report.result.rows] == [
         ("0000201", "B3-2-4", Decimal("12.000")),
-        ("0000202", "K2-03-11", Decimal("18.250")),
+        ("0000202", "K2-03-11", Decimal("18.000")),
     ]
 
 
@@ -53,16 +56,16 @@ def test_xlsx_numeric_and_text_cells(mapping: ColumnMapping, tmp_path: Path) -> 
     sheet = workbook.active
     assert sheet is not None
     sheet.append(["Šifra materiala", "Opis materiala", "ME", "Lokacija", "Zaloga", "Cena na enoto"])
-    sheet.append(["0000301", "Olje HLP 46", "l", "K1-02-03", Decimal("208.125"), 3.9])
+    sheet.append(["0000301", "Olje HLP 46", "l", "K1-02-03", Decimal("208.5"), 3.9])
     sheet.append([None, None, None, None, None, None])
     sheet.append([302, "Filter F120", "kos", "B4-1-2", 7, "1.234,50"])
-    sheet.append(["0000303", "Rokavice nitril", "par", "B5-3-1", 0.1, "x"])
+    sheet.append(["0000303", "Rokavice nitril", "par", "B5-3-1", 3, "x"])
     workbook.save(path)
 
     result = import_stock_file(path, mapping).result
 
     assert [(r.row_number, r.sifra, r.kolicina, r.cena_na_enoto) for r in result.rows] == [
-        (2, "0000301", Decimal("208.125"), Decimal("3.90")),
+        (2, "0000301", Decimal("208.500"), Decimal("3.90")),
         (4, "302", Decimal("7.000"), Decimal("1234.50")),
     ]
     assert result.skipped_blank_rows == 1

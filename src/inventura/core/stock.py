@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
+from inventura.core.locations import Location, LocationError, parse_location
 from inventura.core.numbers import NumberFormat, NumberParseError, fits_numeric, parse_decimal
+from inventura.core.units import is_valid_quantity, quantity_rule
 
 # Quantities are stored as Numeric(14,3), money as Numeric(14,2).
 QUANTITY_PRECISION, QUANTITY_SCALE = 14, 3
@@ -31,6 +33,8 @@ class StockField(StrEnum):
 OPTIONAL_FIELDS = frozenset({StockField.SARZA})
 REQUIRED_FIELDS = frozenset(StockField) - OPTIONAL_FIELDS
 
+StockKey = tuple[str, Location, str | None]
+
 
 @dataclass(frozen=True, slots=True)
 class StockRow:
@@ -40,13 +44,14 @@ class StockRow:
     sifra: str
     opis: str
     merska_enota: str
-    lokacija: str
+    lokacija: Location
     sarza: str | None
     kolicina: Decimal
     cena_na_enoto: Decimal
 
     @property
-    def key(self) -> tuple[str, str, str | None]:
+    def key(self) -> StockKey:
+        """Identity of the row; locations compare by parsed value, so K2-03-11 == K2-3-11."""
         return (self.sifra, self.lokacija, self.sarza)
 
 
@@ -90,7 +95,7 @@ def validate_stock_rows(
     rows: list[StockRow] = []
     errors: list[RowError] = []
     skipped = 0
-    seen_keys: dict[tuple[str, str, str | None], int] = {}
+    seen_keys: dict[StockKey, int] = {}
     units: dict[str, tuple[str, int]] = {}
 
     for row_number, record in records:
@@ -129,7 +134,7 @@ def _parse_row(
             return None
         return value
 
-    def number(field: StockField, precision: int, scale: int) -> Decimal | None:
+    def number(field: StockField) -> Decimal | None:
         raw = record.get(field)
         if _is_blank(raw):
             error(field, "value is required")
@@ -142,18 +147,33 @@ def _parse_row(
         if value < 0:
             error(field, "must not be negative")
             return None
-        if not fits_numeric(value, precision, scale):
-            error(field, f"must have at most {scale} decimals and {precision - scale} digits")
+        return value
+
+    def location() -> Location | None:
+        value = text(StockField.LOKACIJA, MAX_CODE_LENGTH)
+        if value is None:
             return None
-        return value.quantize(Decimal(1).scaleb(-scale))
+        try:
+            return parse_location(value)
+        except LocationError as exc:
+            error(StockField.LOKACIJA, str(exc))
+            return None
 
     sifra = text(StockField.SIFRA, MAX_CODE_LENGTH)
     opis = text(StockField.OPIS, MAX_TEXT_LENGTH)
     merska_enota = text(StockField.MERSKA_ENOTA, MAX_CODE_LENGTH)
-    lokacija = text(StockField.LOKACIJA, MAX_CODE_LENGTH)
+    lokacija = location()
     sarza = text(StockField.SARZA, MAX_CODE_LENGTH)
-    kolicina = number(StockField.KOLICINA, QUANTITY_PRECISION, QUANTITY_SCALE)
-    cena = number(StockField.CENA_NA_ENOTO, MONEY_PRECISION, MONEY_SCALE)
+    kolicina = number(StockField.KOLICINA)
+    cena = number(StockField.CENA_NA_ENOTO)
+
+    if kolicina is not None and merska_enota is not None:
+        if not is_valid_quantity(kolicina, merska_enota):
+            error(StockField.KOLICINA, quantity_rule(merska_enota))
+        elif not fits_numeric(kolicina, QUANTITY_PRECISION, QUANTITY_SCALE):
+            error(StockField.KOLICINA, "is too large")
+    if cena is not None and not fits_numeric(cena, MONEY_PRECISION, MONEY_SCALE):
+        error(StockField.CENA_NA_ENOTO, f"must have at most {MONEY_SCALE} decimals")
 
     if (
         errors
@@ -165,13 +185,22 @@ def _parse_row(
         or cena is None
     ):
         return None, errors
-    row = StockRow(row_number, sifra, opis, merska_enota, lokacija, sarza, kolicina, cena)
+    row = StockRow(
+        row_number=row_number,
+        sifra=sifra,
+        opis=opis,
+        merska_enota=merska_enota,
+        lokacija=lokacija,
+        sarza=sarza,
+        kolicina=kolicina.quantize(Decimal(1).scaleb(-QUANTITY_SCALE)),
+        cena_na_enoto=cena.quantize(Decimal(1).scaleb(-MONEY_SCALE)),
+    )
     return row, errors
 
 
 def _check_consistency(
     row: StockRow,
-    seen_keys: Mapping[tuple[str, str, str | None], int],
+    seen_keys: Mapping[StockKey, int],
     units: Mapping[str, tuple[str, int]],
 ) -> list[RowError]:
     errors: list[RowError] = []
@@ -181,7 +210,7 @@ def _check_consistency(
             RowError(
                 row.row_number,
                 None,
-                " / ".join(part or "" for part in row.key),
+                f"{row.sifra} / {row.lokacija} / {row.sarza or ''}",
                 f"duplicate of row {first} (same material, location and batch)",
             )
         )
