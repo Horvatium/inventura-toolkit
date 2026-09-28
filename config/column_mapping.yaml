@@ -1,0 +1,26 @@
+# Maps the columns of a stock export to the fields the toolkit uses.
+# Each field lists the source headers it accepts; matching ignores case and
+# surrounding spaces. Columns not listed here are ignored.
+# "sarza" (batch) is optional; all other fields must be present in the file.
+
+columns:
+  sifra: ["Šifra materiala", "Sifra materiala", "Šifra", "Material"]
+  opis: ["Opis materiala", "Opis", "Material description"]
+  merska_enota: ["ME", "Merska enota", "Unit", "UoM"]
+  lokacija: ["Lokacija", "Skladiščno mesto", "Storage bin", "Location"]
+  sarza: ["Šarža", "Sarza", "Batch"]
+  kolicina: ["Zaloga", "Količina", "Kolicina", "Quantity"]
+  cena_na_enoto: ["Cena na enoto", "Cena", "Unit price"]
+
+# How numbers are written in text cells (all CSV cells, text cells in XLSX).
+# Numeric XLSX cells are read as numbers and do not depend on this.
+numbers:
+  decimal_separator: ","
+  thousands_separator: "."
+
+csv:
+  delimiter: ";"
+  encoding: "utf-8-sig"
+
+xlsx:
+  sheet: 0 # sheet index (0 = first) or sheet name

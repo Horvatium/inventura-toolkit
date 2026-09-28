@@ -1,0 +1,12 @@
+Šifra materiala;Opis materiala;ME;Lokacija;Šarža;Zaloga;Cena na enoto;Opomba
+0000101;Vijak šestrobi M8x40;kos;B1-1-1;;120;0,15;valid
+
+0000102;;kos;B1-1-2;;10;1,00;missing description
+0000103;Matica M8;kos;B1-1-3;;-5;0,05;negative quantity
+0000104;Olje HLP 46;l;B1-1-4;L01-0001;12,3456;2,50;too many decimals
+0000105;Tesnilo 20x2;kos;B1-1-5;;abc;1.234,50;not a number
+0000101;Vijak šestrobi M8x40;kos;B1-1-1;;5;0,15;duplicate of row 2
+0000101;Vijak šestrobi M8x40;kg;B2-1-1;;5;0,15;unit differs from row 2
+0000106;Podložka M8;kos;B1-1-6;;1.5;0,02;dot is the thousands separator
+;;;;;;;
+0000107;Kabel NYM-J 3x1,5;m;K1-01-01;;1.250,5;0,80;valid with thousands separator

@@ -6,14 +6,28 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Vid", email = "horvatium@gmail.com" }]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "faker>=40.39.0",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+inventura = "inventura.cli:app"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.168.3",
     "mypy>=2.3.1",
+    "pandas-stubs>=3.0.5.260914",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.9",
+    "types-openpyxl>=3.1.5.20260827",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]
@@ -50,7 +64,7 @@ mypy_path = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
 
 [tool.coverage.run]
 source = ["inventura"]

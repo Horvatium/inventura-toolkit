@@ -1,0 +1,158 @@
+from decimal import Decimal
+
+import pytest
+
+from inventura.core.numbers import NumberFormat
+from inventura.core.stock import (
+    RawRecord,
+    StockField,
+    StockRow,
+    ValidationResult,
+    validate_stock_rows,
+)
+
+F = StockField
+FMT = NumberFormat(",", ".")
+
+
+def record(**overrides: object) -> RawRecord:
+    base: dict[StockField, object] = {
+        F.SIFRA: "0001234",
+        F.OPIS: "Vijak M8x40",
+        F.MERSKA_ENOTA: "kos",
+        F.LOKACIJA: "B6-1-1",
+        F.SARZA: "",
+        F.KOLICINA: "120",
+        F.CENA_NA_ENOTO: "0,15",
+    }
+    for name, value in overrides.items():
+        base[F(name)] = value
+    return base
+
+
+def validate(*records: RawRecord) -> ValidationResult:
+    return validate_stock_rows(enumerate(records, start=2), FMT)
+
+
+def test_valid_row_is_converted() -> None:
+    result = validate(record(sarza=" L01-0001 ", kolicina="1.234,5", cena_na_enoto="12,3"))
+    assert result.is_valid
+    assert result.rows == (
+        StockRow(
+            row_number=2,
+            sifra="0001234",
+            opis="Vijak M8x40",
+            merska_enota="kos",
+            lokacija="B6-1-1",
+            sarza="L01-0001",
+            kolicina=Decimal("1234.500"),
+            cena_na_enoto=Decimal("12.30"),
+        ),
+    )
+
+
+def test_quantities_and_prices_are_quantised_to_storage_scale() -> None:
+    row = validate(record(kolicina="5", cena_na_enoto="2")).rows[0]
+    assert str(row.kolicina) == "5.000"
+    assert str(row.cena_na_enoto) == "2.00"
+
+
+def test_empty_batch_becomes_none() -> None:
+    assert validate(record(sarza="  ")).rows[0].sarza is None
+    assert validate(record(sarza=None)).rows[0].sarza is None
+
+
+def test_batch_column_may_be_absent() -> None:
+    raw = dict(record())
+    del raw[F.SARZA]
+    assert validate(raw).rows[0].sarza is None
+
+
+def test_zero_quantity_is_valid() -> None:
+    assert validate(record(kolicina="0")).rows[0].kolicina == Decimal(0)
+
+
+@pytest.mark.parametrize(
+    "field", [F.SIFRA, F.OPIS, F.MERSKA_ENOTA, F.LOKACIJA, F.KOLICINA, F.CENA_NA_ENOTO]
+)
+def test_required_fields(field: StockField) -> None:
+    result = validate(record(**{field.value: " "}))
+    assert result.rows == ()
+    assert [(e.row_number, e.field, e.message) for e in result.errors] == [
+        (2, field, "value is required")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (F.KOLICINA, "-1", "must not be negative"),
+        (F.KOLICINA, "1,2345", "must have at most 3 decimals and 11 digits"),
+        (F.KOLICINA, "100.000.000.000", "must have at most 3 decimals and 11 digits"),
+        (F.KOLICINA, "abc", "not a valid number"),
+        (F.CENA_NA_ENOTO, "0,005", "must have at most 2 decimals and 12 digits"),
+        (F.CENA_NA_ENOTO, "-0,50", "must not be negative"),
+        (F.SIFRA, "X" * 41, "longer than 40 characters"),
+        (F.OPIS, "X" * 201, "longer than 200 characters"),
+    ],
+)
+def test_invalid_values(field: StockField, value: str, message: str) -> None:
+    result = validate(record(**{field.value: value}))
+    assert result.rows == ()
+    (error,) = result.errors
+    assert (error.field, error.value, error.message) == (field, value, message)
+
+
+def test_all_errors_of_a_row_are_reported() -> None:
+    result = validate(record(opis="", kolicina="x", cena_na_enoto="-1"))
+    assert {e.field for e in result.errors} == {F.OPIS, F.KOLICINA, F.CENA_NA_ENOTO}
+    assert result.error_row_count == 1
+
+
+def test_blank_rows_are_skipped_and_keep_numbering() -> None:
+    blank = dict.fromkeys(StockField, "")
+    result = validate(record(), blank, record(lokacija="B6-1-2", kolicina="x"))
+    assert result.skipped_blank_rows == 1
+    assert [e.row_number for e in result.errors] == [4]
+
+
+def test_duplicate_material_location_batch_is_an_error() -> None:
+    result = validate(record(), record(kolicina="5"))
+    assert len(result.rows) == 1
+    (error,) = result.errors
+    assert error.row_number == 3
+    assert error.message == "duplicate of row 2 (same material, location and batch)"
+
+
+def test_same_material_in_other_batch_or_location_is_valid() -> None:
+    result = validate(record(), record(sarza="L1"), record(sarza="L2"), record(lokacija="K1-01-01"))
+    assert result.is_valid
+    assert len(result.rows) == 4
+
+
+def test_unit_must_match_earlier_rows_of_the_same_material() -> None:
+    result = validate(record(), record(lokacija="B6-1-2", merska_enota="kg"))
+    (error,) = result.errors
+    assert (error.row_number, error.field) == (3, F.MERSKA_ENOTA)
+    assert error.message == "unit differs from 'kos' in row 2 for the same material"
+
+
+def test_invalid_row_does_not_block_later_duplicates_check() -> None:
+    # The first row is invalid, so the second one is the first valid occurrence.
+    result = validate(record(kolicina="x"), record())
+    assert [r.row_number for r in result.rows] == [3]
+
+
+def test_numeric_cells_from_xlsx() -> None:
+    result = validate(record(sifra=1234.0, kolicina=12.5, cena_na_enoto=3))
+    row = result.rows[0]
+    assert (row.sifra, row.kolicina, row.cena_na_enoto) == (
+        "1234",
+        Decimal("12.5"),
+        Decimal("3"),
+    )
+
+
+def test_nan_cells_count_as_blank() -> None:
+    result = validate(record(sarza=float("nan")))
+    assert result.rows[0].sarza is None
