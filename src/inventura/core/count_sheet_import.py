@@ -106,9 +106,9 @@ def match_count_sheet(
         location_text = cell_text(row.lokacija)
         sarza = cell_text(row.sarza)
         if sifra is None:
-            error(SIFRA, row.sifra, "value is required")
+            error(SIFRA, row.sifra, "vrednost je obvezna")
         if location_text is None:
-            error(LOKACIJA, row.lokacija, "value is required")
+            error(LOKACIJA, row.lokacija, "vrednost je obvezna")
         try:
             quantity: Decimal | None = parse_decimal(row.kolicina, number_format)
         except NumberParseError as exc:
@@ -124,7 +124,11 @@ def match_count_sheet(
 
         key = (sifra, location, sarza)
         if key in seen:
-            error(None, f"{sifra} / {location} / {sarza or ''}", f"same item as row {seen[key]}")
+            error(
+                None,
+                f"{sifra} / {location} / {sarza or ''}",
+                f"ista postavka kot v vrstici {seen[key]}",
+            )
             continue
         seen[key] = row.row_number
 
@@ -135,7 +139,7 @@ def match_count_sheet(
                 overwritten = position.presteta_kolicina not in (None, value)
                 result.updates.append(CountUpdate(position.item_id, value, overwritten))
             elif sifra not in material_units:
-                error(SIFRA, sifra, "material is not in the material master data")
+                error(SIFRA, sifra, "materiala ni v šifrantu")
             else:
                 value = validate_found_quantity(quantity, material_units[sifra])
                 result.found.append(FoundGoods(row.row_number, sifra, location, sarza, value))

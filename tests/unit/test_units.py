@@ -31,5 +31,5 @@ def test_is_valid_quantity(quantity: str, unit: str, valid: bool) -> None:
 
 
 def test_quantity_rule_messages() -> None:
-    assert quantity_rule("kos") == "quantity in 'kos' must be a whole number"
-    assert quantity_rule("m") == "quantity in 'm' may have at most 1 decimal"
+    assert quantity_rule("kos") == "količina v merski enoti 'kos' mora biti celo število"
+    assert quantity_rule("m") == "količina v merski enoti 'm' ima lahko največ 1 decimalko"

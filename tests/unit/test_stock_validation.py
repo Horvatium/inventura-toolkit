@@ -80,26 +80,26 @@ def test_required_fields(field: StockField) -> None:
     result = validate(record(**{field.value: " "}))
     assert result.rows == ()
     assert [(e.row_number, e.field, e.message) for e in result.errors] == [
-        (2, field, "value is required")
+        (2, field, "vrednost je obvezna")
     ]
 
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        (F.KOLICINA, "-1", "must not be negative"),
-        (F.KOLICINA, "1,5", "quantity in 'kos' must be a whole number"),
-        (F.KOLICINA, "100.000.000.000", "is too large"),
-        (F.KOLICINA, "abc", "not a valid number"),
-        (F.CENA_NA_ENOTO, "0,005", "must have at most 2 decimals"),
+        (F.KOLICINA, "-1", "ne sme biti negativno"),
+        (F.KOLICINA, "1,5", "količina v merski enoti 'kos' mora biti celo število"),
+        (F.KOLICINA, "100.000.000.000", "je preveliko"),
+        (F.KOLICINA, "abc", "ni veljavno število"),
+        (F.CENA_NA_ENOTO, "0,005", "ima lahko največ 2 decimalni mesti"),
         (
             F.LOKACIJA,
             "B6-1",
-            "invalid location, expected RACK-LEVEL-POSITION such as B6-1-1 or K2-03-11",
+            "neveljavna lokacija, pričakovana oblika REGAL-NIVO-POLOŽAJ, npr. B6-1-1 ali K2-03-11",
         ),
-        (F.CENA_NA_ENOTO, "-0,50", "must not be negative"),
-        (F.SIFRA, "X" * 41, "longer than 40 characters"),
-        (F.OPIS, "X" * 201, "longer than 200 characters"),
+        (F.CENA_NA_ENOTO, "-0,50", "ne sme biti negativno"),
+        (F.SIFRA, "X" * 41, "daljše od 40 znakov"),
+        (F.OPIS, "X" * 201, "daljše od 200 znakov"),
     ],
 )
 def test_invalid_values(field: StockField, value: str, message: str) -> None:
@@ -127,13 +127,13 @@ def test_duplicate_material_location_batch_is_an_error() -> None:
     assert len(result.rows) == 1
     (error,) = result.errors
     assert error.row_number == 3
-    assert error.message == "duplicate of row 2 (same material, location and batch)"
+    assert error.message == "podvojena vrstica 2 (isti material, lokacija in šarža)"
 
 
 def test_duplicate_location_written_with_leading_zeros() -> None:
     result = validate(record(lokacija="K2-03-11"), record(lokacija="K2-3-11"))
     assert [e.row_number for e in result.errors] == [3]
-    assert result.errors[0].message.startswith("duplicate of row 2")
+    assert result.errors[0].message.startswith("podvojena vrstica 2")
 
 
 @pytest.mark.parametrize(
@@ -141,8 +141,8 @@ def test_duplicate_location_written_with_leading_zeros() -> None:
     [
         ("m", "12,5", None),
         ("l", "0,5", None),
-        ("m", "12,55", "quantity in 'm' may have at most 1 decimal"),
-        ("kg", "2,5", "quantity in 'kg' must be a whole number"),
+        ("m", "12,55", "količina v merski enoti 'm' ima lahko največ 1 decimalko"),
+        ("kg", "2,5", "količina v merski enoti 'kg' mora biti celo število"),
         ("kos", "3,0", None),
     ],
 )
@@ -161,7 +161,7 @@ def test_unit_must_match_earlier_rows_of_the_same_material() -> None:
     result = validate(record(), record(lokacija="B6-1-2", merska_enota="kg"))
     (error,) = result.errors
     assert (error.row_number, error.field) == (3, F.MERSKA_ENOTA)
-    assert error.message == "unit differs from 'kos' in row 2 for the same material"
+    assert error.message == "merska enota se razlikuje od 'kos' v vrstici 2 pri istem materialu"
 
 
 def test_invalid_row_does_not_block_later_duplicates_check() -> None:

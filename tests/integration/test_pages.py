@@ -74,7 +74,7 @@ def test_invalid_count_shows_the_error_in_the_row(
     assert response.status_code == 200
     assert "has-error" in response.text
     assert 'value="1,5"' in response.text
-    assert "must be a whole number" in response.text
+    assert "mora biti celo število" in response.text
     assert client.get(f"/api/documents/{document['id']}").json()["presteto"] == 0
 
 
@@ -98,7 +98,7 @@ def test_found_goods_form(client: TestClient, document: dict[str, Any]) -> None:
     assert "najdeno" in added.text
 
     rejected = client.post(url, data=form | {"sifra": "7777777"})
-    assert "not in the material master data" in rejected.text
+    assert "ni v šifrantu" in rejected.text
     assert 'value="7777777"' in rejected.text
     assert "hx-swap-oob" not in rejected.text
 
@@ -138,7 +138,7 @@ def test_import_with_row_errors_lists_them(client: TestClient, fixtures_dir: Any
     response = client.post("/snapshots", files={"file": ("stock_errors.csv", data)})
     assert "Datoteka ima napake, nič ni uvoženo." in response.text
     assert "Vrstic z napakami: 10" in response.text
-    assert "value is required" in response.text
+    assert "vrednost je obvezna" in response.text
 
 
 def test_upload_with_row_errors_lists_them(client: TestClient, document: dict[str, Any]) -> None:
@@ -150,5 +150,14 @@ def test_upload_with_row_errors_lists_them(client: TestClient, document: dict[st
     url = f"/documents/{document['id']}/upload"
     response = client.post(url, files={"file": ("b6.xlsx", buffer.getvalue())})
     assert "Popisni list ima napake, nič ni shranjeno." in response.text
-    assert "must be a whole number" in response.text
+    assert "mora biti celo število" in response.text
     assert "hx-swap-oob" not in response.text
+
+
+def test_htmx_is_served_locally(client: TestClient, document: dict[str, Any]) -> None:
+    page = client.get(f"/documents/{document['id']}").text
+    assert 'src="http://testserver/static/htmx.min.js"' in page
+    assert "cdn." not in page
+    script = client.get("/static/htmx.min.js")
+    assert script.status_code == 200
+    assert 'version:"2.0.11"' in script.text

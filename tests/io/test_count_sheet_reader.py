@@ -68,7 +68,7 @@ def test_single_worksheet_with_another_name_is_used() -> None:
 
 
 def test_workbook_without_the_rack() -> None:
-    with pytest.raises(CountSheetError, match="no worksheet named 'B9'"):
+    with pytest.raises(CountSheetError, match="ni lista z imenom 'B9'"):
         read_count_sheet(written_sheets(), "B9")
 
 
@@ -79,7 +79,7 @@ def test_missing_columns() -> None:
     sheet.append(["Šifra", "Prešteta količina"])
     buffer = BytesIO()
     workbook.save(buffer)
-    with pytest.raises(CountSheetError, match="missing columns: Lokacija"):
+    with pytest.raises(CountSheetError, match="manjkajo stolpci: Lokacija"):
         read_count_sheet(buffer.getvalue(), "B6")
 
 
@@ -87,10 +87,10 @@ def test_no_header_row() -> None:
     workbook = Workbook()
     buffer = BytesIO()
     workbook.save(buffer)
-    with pytest.raises(CountSheetError, match="no header row"):
+    with pytest.raises(CountSheetError, match="ni vrstice z naslovom stolpca"):
         read_count_sheet(buffer.getvalue(), "B6")
 
 
 def test_not_an_excel_file() -> None:
-    with pytest.raises(CountSheetError, match="cannot read the file"):
+    with pytest.raises(CountSheetError, match="ni mogoče prebrati"):
         read_count_sheet(b"Lokacija;Sifra\n", "B6")

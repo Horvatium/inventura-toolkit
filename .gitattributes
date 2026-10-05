@@ -14,3 +14,6 @@
 *.jpg binary
 *.gif binary
 *.ico binary
+
+# Vendored third-party code.
+src/inventura/web/static/htmx.min.js linguist-vendored -diff

@@ -31,11 +31,11 @@ def read_count_sheet(data: bytes, rack: str) -> list[SheetRow]:
     try:
         workbook = load_workbook(BytesIO(data), data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, KeyError, OSError) as exc:
-        raise CountSheetError(f"cannot read the file as an Excel workbook: {exc}") from exc
+        raise CountSheetError(f"datoteke ni mogoče prebrati kot Excel: {exc}") from exc
     sheet = _sheet_for_rack(workbook.sheetnames, rack)
     worksheet = workbook[sheet]
     if not isinstance(worksheet, Worksheet):  # e.g. a chart sheet
-        raise CountSheetError(f"{sheet!r} is not a worksheet")
+        raise CountSheetError(f"{sheet!r} ni delovni list")
     return _rows(worksheet)
 
 
@@ -45,7 +45,7 @@ def _sheet_for_rack(names: list[str], rack: str) -> str:
             return name
     if len(names) == 1:
         return names[0]
-    raise CountSheetError(f"the workbook has no worksheet named {rack!r}")
+    raise CountSheetError(f"v datoteki ni lista z imenom {rack!r}")
 
 
 def _rows(worksheet: Worksheet) -> list[SheetRow]:
@@ -59,12 +59,12 @@ def _rows(worksheet: Worksheet) -> list[SheetRow]:
         if number >= HEADER_SEARCH_ROWS:
             break
     if not header_row:
-        raise CountSheetError(f"no header row with a {COUNT_COLUMN_TITLE!r} column")
+        raise CountSheetError(f"ni vrstice z naslovom stolpca {COUNT_COLUMN_TITLE!r}")
 
     required = (LOCATION_COLUMN_TITLE, CODE_COLUMN_TITLE, COUNT_COLUMN_TITLE)
     missing = [title for title in required if _title(title) not in columns]
     if missing:
-        raise CountSheetError(f"missing columns: {', '.join(missing)}")
+        raise CountSheetError(f"manjkajo stolpci: {', '.join(missing)}")
 
     def cell(values: tuple[object, ...], title: str) -> object:
         index = columns.get(_title(title))

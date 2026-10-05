@@ -12,11 +12,11 @@ def test_generate_and_import_csv(tmp_path: Path, mapping_path: Path) -> None:
     output = tmp_path / "out" / "stock.csv"
     result = runner.invoke(app, ["generate", "-o", str(output), "--materials", "30"])
     assert result.exit_code == 0, result.output
-    assert "for 30 materials" in result.output
+    assert "materialov: 30" in result.output
 
     result = runner.invoke(app, ["import", str(output), "--mapping", str(mapping_path)])
     assert result.exit_code == 0, result.output
-    assert "No errors." in result.output
+    assert "Brez napak." in result.output
 
 
 def test_generate_xlsx(tmp_path: Path) -> None:
@@ -49,8 +49,8 @@ def test_import_with_errors_exits_1_and_writes_report(
         ],
     )
     assert result.exit_code == 1
-    assert "2 valid, 10 with errors, 2 blank skipped" in result.output
-    assert "... 7 more" in result.output
+    assert "veljavnih 2, z napakami 10, praznih 2" in result.output
+    assert "... in še 7" in result.output
     assert report.exists()
 
 
@@ -59,7 +59,7 @@ def test_import_missing_columns_exits_2(tmp_path: Path, mapping_path: Path) -> N
     path.write_text("A;B\n1;2\n", encoding="utf-8")
     result = runner.invoke(app, ["import", str(path), "--mapping", str(mapping_path)])
     assert result.exit_code == 2
-    assert "missing columns" in result.output
+    assert "manjkajo stolpci" in result.output
 
 
 def test_import_invalid_mapping_exits_2(tmp_path: Path, fixtures_dir: Path) -> None:
@@ -69,7 +69,7 @@ def test_import_invalid_mapping_exits_2(tmp_path: Path, fixtures_dir: Path) -> N
         app, ["import", str(fixtures_dir / "stock_errors.csv"), "--mapping", str(mapping)]
     )
     assert result.exit_code == 2
-    assert "Invalid column mapping" in result.output
+    assert "Neveljavna preslikava stolpcev" in result.output
 
 
 def test_sheets_writes_xlsx_and_html(tmp_path: Path, mapping_path: Path) -> None:
@@ -93,7 +93,7 @@ def test_sheets_writes_xlsx_and_html(tmp_path: Path, mapping_path: Path) -> None
     assert (out / "count_sheets.xlsx").exists()
     html = (out / "count_sheets.html").read_text(encoding="utf-8")
     assert "Datum: 28. 9. 2026" in html
-    assert "Wrote 12 of 12 count documents" in result.output
+    assert "Popisni listi (12 od 12)" in result.output
 
 
 def test_sheets_for_selected_racks(tmp_path: Path, mapping_path: Path) -> None:
@@ -103,13 +103,13 @@ def test_sheets_for_selected_racks(tmp_path: Path, mapping_path: Path) -> None:
     args = ["sheets", str(export), "-o", str(out), "--mapping", str(mapping_path)]
     result = runner.invoke(app, [*args, "-r", "k2", "-r", "B06"])
     assert result.exit_code == 0, result.output
-    assert "Wrote 2 of 12 count documents" in result.output
+    assert "Popisni listi (2 od 12)" in result.output
     html = (out / "count_sheets.html").read_text(encoding="utf-8")
     assert html.index("regal B6") < html.index("regal K2")
 
 
 @pytest.mark.parametrize(
-    ("rack", "message"), [("B99", "no stock in rack B99"), ("6B", "invalid rack")]
+    ("rack", "message"), [("B99", "v regalu B99 ni zaloge"), ("6B", "neveljaven regal")]
 )
 def test_sheets_rejects_unknown_rack(
     tmp_path: Path, mapping_path: Path, fixtures_dir: Path, rack: str, message: str
@@ -147,5 +147,5 @@ def test_sheets_refuses_export_with_errors(
         ],
     )
     assert result.exit_code == 1
-    assert "Fix the errors above" in result.output
+    assert "popravi zgornje napake" in result.output
     assert not out.exists()

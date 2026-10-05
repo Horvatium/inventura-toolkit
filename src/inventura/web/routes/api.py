@@ -61,7 +61,7 @@ def import_snapshot(
     """Import a stock export (CSV or XLSX). Stored only if every row is valid."""
     data = file.file.read(settings.max_upload_bytes + 1)
     if len(data) > settings.max_upload_bytes:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file is too large")
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "datoteka je prevelika")
     try:
         report = import_stock_bytes(data, file.filename or "", mapping)
     except (UnsupportedFileError, UnreadableFileError, ColumnMappingError) as exc:
@@ -69,9 +69,9 @@ def import_snapshot(
 
     result = report.result
     if not result.is_valid:
-        return _rejected("the file has rows with errors; nothing was imported", result.errors)
+        return _rejected("datoteka ima vrstice z napakami, nič ni uvoženo", result.errors)
     if not result.rows:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "the file has no stock rows")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "datoteka nima vrstic z zalogo")
 
     snapshot = snapshots.save_snapshot(session, report.source, result.rows)
     session.commit()
@@ -224,7 +224,7 @@ def import_count_sheet(
     from the sheet replaces one entered earlier, an empty cell changes nothing."""
     data = file.file.read(settings.max_upload_bytes + 1)
     if len(data) > settings.max_upload_bytes:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file is too large")
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "datoteka je prevelika")
     try:
         summary = counting.import_count_sheet(
             session, document_id, data, stevec, datetime.now(UTC), mapping.numbers.to_format()

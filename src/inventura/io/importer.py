@@ -66,7 +66,7 @@ def write_error_report(errors: tuple[RowError, ...], path: Path) -> None:
     """Write row errors as a semicolon-separated CSV that opens directly in Excel."""
     with path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.writer(file, delimiter=";")
-        writer.writerow(["row", "field", "value", "message"])
+        writer.writerow(["vrstica", "polje", "vrednost", "napaka"])
         for error in errors:
             writer.writerow([error.row_number, error.field or "", error.value, error.message])
 
@@ -74,7 +74,7 @@ def write_error_report(errors: tuple[RowError, ...], path: Path) -> None:
 def _read_frame(source: Path | BytesIO, suffix: str, mapping: ColumnMapping) -> pd.DataFrame:
     if suffix not in SUPPORTED_SUFFIXES:
         raise UnsupportedFileError(
-            f"unsupported file type {suffix!r}; expected one of {', '.join(SUPPORTED_SUFFIXES)}"
+            f"nepodprta vrsta datoteke {suffix!r}; podprte so {', '.join(SUPPORTED_SUFFIXES)}"
         )
     try:
         return _read(source, suffix, mapping)
@@ -85,10 +85,10 @@ def _read_frame(source: Path | BytesIO, suffix: str, mapping: ColumnMapping) -> 
         pd.errors.ParserError,
         pd.errors.EmptyDataError,
     ) as exc:
-        raise UnreadableFileError(f"cannot read the file: {exc}") from exc
+        raise UnreadableFileError(f"datoteke ni mogoče prebrati: {exc}") from exc
     except (ValueError, IndexError) as exc:
         # pandas reports a missing worksheet this way.
-        raise UnreadableFileError(f"cannot read the file: {exc}") from exc
+        raise UnreadableFileError(f"datoteke ni mogoče prebrati: {exc}") from exc
 
 
 def _read(source: Path | BytesIO, suffix: str, mapping: ColumnMapping) -> pd.DataFrame:

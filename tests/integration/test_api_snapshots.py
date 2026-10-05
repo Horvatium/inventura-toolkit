@@ -78,7 +78,7 @@ def test_file_with_row_errors_is_rejected_and_nothing_stored(
         "vrstica": 4,
         "polje": "opis",
         "vrednost": "",
-        "sporocilo": "value is required",
+        "sporocilo": "vrednost je obvezna",
     }
     assert session.scalar(select(func.count()).select_from(StockSnapshot)) == 0
 
@@ -86,10 +86,10 @@ def test_file_with_row_errors_is_rejected_and_nothing_stored(
 @pytest.mark.parametrize(
     ("name", "data", "message"),
     [
-        ("stock.txt", b"x", "unsupported file type '.txt'"),
-        ("stock.csv", b"A;B\n1;2\n", "missing columns"),
-        ("stock.xlsx", b"not a zip file", "cannot read the file"),
-        ("stock.csv", "Šifra;x\n".encode("cp1250"), "cannot read the file"),
+        ("stock.txt", b"x", "nepodprta vrsta datoteke '.txt'"),
+        ("stock.csv", b"A;B\n1;2\n", "manjkajo stolpci"),
+        ("stock.xlsx", b"not a zip file", "ni mogoče prebrati"),
+        ("stock.csv", "Šifra;x\n".encode("cp1250"), "ni mogoče prebrati"),
     ],
 )
 def test_unreadable_files_are_bad_requests(
@@ -104,7 +104,7 @@ def test_header_only_file_is_a_bad_request(client: TestClient) -> None:
     data = "Šifra materiala;Opis materiala;ME;Lokacija;Zaloga;Cena na enoto\n".encode()
     response = client.post("/api/snapshots", files={"file": ("stock.csv", data)})
     assert response.status_code == 400
-    assert response.json()["detail"] == "the file has no stock rows"
+    assert response.json()["detail"] == "datoteka nima vrstic z zalogo"
 
 
 def test_file_too_large(client: TestClient, export_csv: bytes) -> None:

@@ -55,7 +55,7 @@ def test_one_document_per_rack_in_natural_order(created: list[dict[str, Any]]) -
 def test_documents_can_be_created_once(client: TestClient, created: list[dict[str, Any]]) -> None:
     response = client.post(f"/api/snapshots/{created[0]['snapshot_id']}/documents")
     assert response.status_code == 409
-    assert "already has count documents" in response.json()["detail"]
+    assert "že ima popisne dokumente" in response.json()["detail"]
 
 
 def test_unknown_snapshot(client: TestClient) -> None:

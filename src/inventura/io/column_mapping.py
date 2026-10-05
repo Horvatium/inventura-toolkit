@@ -80,14 +80,14 @@ class ColumnMapping(_Model):
         missing = sorted(REQUIRED_FIELDS - found.keys())
         if missing:
             problems.append(
-                "missing columns: "
-                + "; ".join(f"{field} (one of {self.columns[field]})" for field in missing)
+                "manjkajo stolpci: "
+                + "; ".join(f"{field} (eden od {self.columns[field]})" for field in missing)
             )
         for field, matches in found.items():
             if len(matches) > 1:
-                problems.append(f"several columns match {field}: {matches}")
+                problems.append(f"polju {field} ustreza več stolpcev: {matches}")
         if problems:
-            raise ColumnMappingError(". ".join(problems) + f". Headers in file: {list(headers)}")
+            raise ColumnMappingError(". ".join(problems) + f". Stolpci v datoteki: {list(headers)}")
         return {field: matches[0] for field, matches in found.items()}
 
 

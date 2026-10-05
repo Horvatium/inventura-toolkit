@@ -66,9 +66,9 @@ def test_zero_is_a_count_and_null_clears_it(client: TestClient, document: dict[s
     [
         ("0000002", 12.5, 200, "12.500"),
         ("0000002", "12.5", 200, "12.500"),
-        ("0000002", "12.55", 422, "quantity in 'm' may have at most 1 decimal"),
-        ("0000001", "1.5", 422, "quantity in 'kos' must be a whole number"),
-        ("0000001", "-1", 422, "quantity must not be negative"),
+        ("0000002", "12.55", 422, "količina v merski enoti 'm' ima lahko največ 1 decimalko"),
+        ("0000001", "1.5", 422, "količina v merski enoti 'kos' mora biti celo število"),
+        ("0000001", "-1", 422, "količina ne sme biti negativna"),
     ],
 )
 def test_quantity_rules(
@@ -99,7 +99,7 @@ def test_closed_document_cannot_be_changed(
     )
     response = count(client, item(document, "0000001"), "5")
     assert response.status_code == 409
-    assert response.json()["detail"] == "document is closed"
+    assert response.json()["detail"] == "dokument je zaključen"
 
 
 def test_earlier_round_cannot_be_changed(

@@ -16,6 +16,7 @@ from inventura.io.count_sheets import (
     write_count_sheets_html,
     write_count_sheets_xlsx,
 )
+from inventura.io.formats import format_decimal
 from inventura.io.importer import (
     ImportReport,
     UnreadableFileError,
@@ -45,14 +46,16 @@ def generate(
     """Generate a fictional stock export."""
     suffix = output.suffix.lower()
     if suffix not in (".csv", ".xlsx"):
-        raise typer.BadParameter("output must end in .csv or .xlsx", param_hint="--output")
+        raise typer.BadParameter(
+            "datoteka mora imeti končnico .csv ali .xlsx", param_hint="--output"
+        )
     rows = generator.generate_stock(materials=materials, seed=seed)
     output.parent.mkdir(parents=True, exist_ok=True)
     if suffix == ".csv":
         generator.write_csv(rows, output)
     else:
         generator.write_xlsx(rows, output)
-    typer.echo(f"Wrote {len(rows)} rows for {materials} materials to {output}")
+    typer.echo(f"Izvoz zalog: {output} (materialov: {materials}, vrstic: {len(rows)})")
 
 
 @app.command("import")
@@ -73,7 +76,7 @@ def import_stock(
     report = _import(file, mapping, errors_csv, show)
     if not report.result.is_valid:
         raise typer.Exit(code=1)
-    typer.echo("No errors.")
+    typer.echo("Brez napak.")
 
 
 @app.command()
@@ -102,7 +105,7 @@ def sheets(
     """
     report = _import(file, mapping, errors_csv=None, show=20)
     if not report.result.is_valid:
-        typer.echo("Fix the errors above before creating count sheets.", err=True)
+        typer.echo("Pred pripravo popisnih listov popravi zgornje napake.", err=True)
         raise typer.Exit(code=1)
 
     documents = split_by_rack(report.result.rows)
@@ -116,7 +119,7 @@ def sheets(
         missing = wanted - {rack_sort_key(d.rack) for d in selected}
         if missing:
             names = ", ".join(f"{prefix}{number}" for prefix, number in sorted(missing))
-            raise typer.BadParameter(f"no stock in rack {names}", param_hint="--rack")
+            raise typer.BadParameter(f"v regalu {names} ni zaloge", param_hint="--rack")
 
     options = SheetOptions(
         created=(created.date() if created else date.today()),
@@ -131,11 +134,12 @@ def sheets(
 
     for document in selected:
         typer.echo(
-            f"  {document.number:>3}. {document.rack:<5} {len(document.items):>5} items "
-            f"{len(document.locations):>4} locations  book value {document.book_value:>12,} EUR"
+            f"  {document.number:>3}. regal {document.rack:<5} postavk: {len(document.items):>5}  "
+            f"lokacij: {len(document.locations):>4}  "
+            f"knjižna vrednost: {format_decimal(document.book_value, 2):>13} €"
         )
-    typer.echo(f"Wrote {len(selected)} of {len(documents)} count documents to {xlsx_path}")
-    typer.echo(f"Printable page: {html_path}")
+    typer.echo(f"Popisni listi ({len(selected)} od {len(documents)}): {xlsx_path}")
+    typer.echo(f"Stran za tisk: {html_path}")
 
 
 @app.command()
@@ -155,31 +159,33 @@ def _import(file: Path, mapping: Path, errors_csv: Path | None, show: int) -> Im
     try:
         column_mapping = load_column_mapping(mapping)
     except ValidationError as exc:
-        _fail(f"Invalid column mapping {mapping}:\n{exc}")
+        _fail(f"Neveljavna preslikava stolpcev {mapping}:\n{exc}")
     try:
         report = import_stock_file(file, column_mapping)
     except (ColumnMappingError, UnsupportedFileError, UnreadableFileError) as exc:
-        _fail(f"Cannot import {file}: {exc}")
+        _fail(f"Datoteke {file} ni mogoče uvoziti: {exc}")
 
     result = report.result
-    typer.echo(f"File: {file}")
-    typer.echo("Columns: " + ", ".join(f"{f} <- {h!r}" for f, h in report.columns.items()))
+    typer.echo(f"Datoteka: {file}")
+    typer.echo("Stolpci: " + ", ".join(f"{f} <- {h!r}" for f, h in report.columns.items()))
     typer.echo(
-        f"Rows: {report.data_rows} read, {len(result.rows)} valid, "
-        f"{result.error_row_count} with errors, {result.skipped_blank_rows} blank skipped"
+        f"Vrstice: prebranih {report.data_rows}, veljavnih {len(result.rows)}, "
+        f"z napakami {result.error_row_count}, praznih {result.skipped_blank_rows}"
     )
     if result.is_valid:
         return report
 
-    typer.echo(f"Errors: {len(result.errors)}")
+    typer.echo(f"Napake: {len(result.errors)}")
     for error in result.errors[:show]:
         field = error.field or "-"
-        typer.echo(f"  row {error.row_number:>6}  {field:<14} {error.value!r:<20} {error.message}")
+        typer.echo(
+            f"  vrstica {error.row_number:>6}  {field:<14} {error.value!r:<20} {error.message}"
+        )
     if len(result.errors) > show:
-        typer.echo(f"  ... {len(result.errors) - show} more")
+        typer.echo(f"  ... in še {len(result.errors) - show}")
     if errors_csv is not None:
         write_error_report(result.errors, errors_csv)
-        typer.echo(f"Error report written to {errors_csv}")
+        typer.echo(f"Poročilo o napakah: {errors_csv}")
     return report
 
 

@@ -109,10 +109,12 @@ def test_errors() -> None:
         (12, "presteta_kolicina"),
         (13, "presteta_kolicina"),
     ]
-    assert result.errors[1].message == "location B7-1-1 is not in rack B6"
-    assert result.errors[3].message == "material is not in the material master data"
+    assert result.errors[1].message == "lokacija B7-1-1 ni v regalu B6"
+    assert result.errors[3].message == "materiala ni v šifrantu"
 
 
 def test_same_item_twice_is_an_error() -> None:
     result = match(row(6, "B6-1-1", "0000001", 1), row(7, "B6-01-1", "0000001", 2))
-    assert [(e.row_number, e.message) for e in result.errors] == [(7, "same item as row 6")]
+    assert [(e.row_number, e.message) for e in result.errors] == [
+        (7, "ista postavka kot v vrstici 6")
+    ]

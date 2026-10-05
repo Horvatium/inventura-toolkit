@@ -56,12 +56,12 @@ def test_optional_batch_column_may_be_missing(mapping: ColumnMapping) -> None:
 
 
 def test_missing_required_columns_are_listed(mapping: ColumnMapping) -> None:
-    with pytest.raises(ColumnMappingError, match=r"missing columns: kolicina .*lokacija"):
+    with pytest.raises(ColumnMappingError, match=r"manjkajo stolpci: kolicina .*lokacija"):
         mapping.resolve(["Šifra materiala", "Opis materiala", "ME", "Cena na enoto"])
 
 
 def test_two_columns_for_one_field_is_an_error(mapping: ColumnMapping) -> None:
-    with pytest.raises(ColumnMappingError, match="several columns match opis"):
+    with pytest.raises(ColumnMappingError, match="polju opis ustreza več stolpcev"):
         mapping.resolve([*EXPORT_HEADERS, "Opis"])
 
 

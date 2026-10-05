@@ -63,7 +63,7 @@ def list_snapshots(session: Session) -> list[SnapshotSummary]:
 def get_snapshot(session: Session, snapshot_id: int) -> SnapshotSummary:
     snapshot = session.get(StockSnapshot, snapshot_id)
     if snapshot is None:
-        raise NotFoundError(f"snapshot {snapshot_id} not found")
+        raise NotFoundError(f"uvoz {snapshot_id} ne obstaja")
     return _summary(session, snapshot)
 
 

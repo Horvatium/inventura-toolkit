@@ -50,12 +50,12 @@ def test_found_goods_get_book_zero_and_current_price(
 @pytest.mark.parametrize(
     ("body", "status", "message"),
     [
-        ({"sifra": "7777777"}, 422, "not in the material master data"),
-        ({"lokacija": "K1-01-01"}, 422, "not in rack B6"),
-        ({"lokacija": "B6"}, 422, "invalid location"),
-        ({"presteta_kolicina": "0"}, 422, "greater than 0"),
-        ({"presteta_kolicina": "1.5"}, 422, "whole number"),
-        ({"lokacija": "B6-01-01", "sifra": "0000001"}, 409, "already on the document"),
+        ({"sifra": "7777777"}, 422, "ni v šifrantu"),
+        ({"lokacija": "K1-01-01"}, 422, "ni v regalu B6"),
+        ({"lokacija": "B6"}, 422, "neveljavna lokacija"),
+        ({"presteta_kolicina": "0"}, 422, "večjo od 0"),
+        ({"presteta_kolicina": "1.5"}, 422, "celo število"),
+        ({"lokacija": "B6-01-01", "sifra": "0000001"}, 409, "že na dokumentu"),
     ],
 )
 def test_found_goods_rules(
@@ -140,7 +140,7 @@ def test_upload_with_errors_stores_nothing(client: TestClient, document: dict[st
 
 @pytest.mark.parametrize(
     ("data", "message"),
-    [(b"not excel", "cannot read the file"), (None, "no worksheet named 'B6'")],
+    [(b"not excel", "ni mogoče prebrati"), (None, "ni lista z imenom 'B6'")],
 )
 def test_upload_unreadable(
     client: TestClient, document: dict[str, Any], data: bytes | None, message: str

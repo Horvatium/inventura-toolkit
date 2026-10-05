@@ -89,7 +89,7 @@ def test_xlsx_sheet_by_name(mapping: ColumnMapping, tmp_path: Path) -> None:
 def test_missing_columns_raise(mapping: ColumnMapping, tmp_path: Path) -> None:
     path = tmp_path / "stock.csv"
     path.write_text("Šifra materiala;Opis materiala\n1;Vijak\n", encoding="utf-8")
-    with pytest.raises(ColumnMappingError, match="missing columns"):
+    with pytest.raises(ColumnMappingError, match="manjkajo stolpci"):
         import_stock_file(path, mapping)
 
 
@@ -107,6 +107,6 @@ def test_error_report_csv(mapping: ColumnMapping, fixtures_dir: Path, tmp_path: 
 
     with path.open(encoding="utf-8-sig", newline="") as file:
         lines = list(csv.reader(file, delimiter=";"))
-    assert lines[0] == ["row", "field", "value", "message"]
-    assert lines[1] == ["4", "opis", "", "value is required"]
+    assert lines[0] == ["vrstica", "polje", "vrednost", "napaka"]
+    assert lines[1] == ["4", "opis", "", "vrednost je obvezna"]
     assert len(lines) == len(errors) + 1

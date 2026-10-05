@@ -21,5 +21,5 @@ def quantity_rule(unit: str) -> str:
     """Human readable rule for error messages."""
     decimals = quantity_decimals(unit)
     if decimals == 0:
-        return f"quantity in {unit!r} must be a whole number"
-    return f"quantity in {unit!r} may have at most {decimals} decimal"
+        return f"količina v merski enoti {unit!r} mora biti celo število"
+    return f"količina v merski enoti {unit!r} ima lahko največ {decimals} decimalko"

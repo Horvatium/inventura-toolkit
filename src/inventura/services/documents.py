@@ -23,9 +23,9 @@ def create_documents(session: Session, snapshot_id: int) -> list[CountDocument]:
     """One document per rack; book quantity and unit price are frozen into the items."""
     snapshot = session.get(StockSnapshot, snapshot_id, with_for_update=True)
     if snapshot is None:
-        raise NotFoundError(f"snapshot {snapshot_id} not found")
+        raise NotFoundError(f"uvoz {snapshot_id} ne obstaja")
     if session.scalar(select(exists().where(CountDocument.snapshot_id == snapshot_id))):
-        raise ConflictError(f"snapshot {snapshot_id} already has count documents")
+        raise ConflictError(f"uvoz {snapshot_id} že ima popisne dokumente")
 
     stock = session.execute(
         select(StockItem, Material)
@@ -89,7 +89,7 @@ def list_documents(session: Session, snapshot_id: int | None = None) -> list[Doc
 def get_document(session: Session, document_id: int) -> DocumentProgress:
     row = session.execute(_progress_query().where(CountDocument.id == document_id)).first()
     if row is None:
-        raise NotFoundError(f"document {document_id} not found")
+        raise NotFoundError(f"dokument {document_id} ne obstaja")
     return DocumentProgress(*row)
 
 
@@ -115,7 +115,7 @@ def get_item(session: Session, item_id: int) -> CountItem:
         select(CountItem).options(joinedload(CountItem.material)).where(CountItem.id == item_id)
     ).one_or_none()
     if item is None:
-        raise NotFoundError(f"count item {item_id} not found")
+        raise NotFoundError(f"postavka {item_id} ne obstaja")
     return item
 
 

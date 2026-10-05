@@ -127,17 +127,17 @@ def _parse_row(
         value = cell_text(record.get(field))
         if value is None:
             if field in REQUIRED_FIELDS:
-                error(field, "value is required")
+                error(field, "vrednost je obvezna")
             return None
         if len(value) > max_length:
-            error(field, f"longer than {max_length} characters")
+            error(field, f"daljše od {max_length} znakov")
             return None
         return value
 
     def number(field: StockField) -> Decimal | None:
         raw = record.get(field)
         if is_blank(raw):
-            error(field, "value is required")
+            error(field, "vrednost je obvezna")
             return None
         try:
             value = parse_decimal(raw, number_format)
@@ -145,7 +145,7 @@ def _parse_row(
             error(field, str(exc))
             return None
         if value < 0:
-            error(field, "must not be negative")
+            error(field, "ne sme biti negativno")
             return None
         return value
 
@@ -171,9 +171,9 @@ def _parse_row(
         if not is_valid_quantity(kolicina, merska_enota):
             error(StockField.KOLICINA, quantity_rule(merska_enota))
         elif not fits_numeric(kolicina, QUANTITY_PRECISION, QUANTITY_SCALE):
-            error(StockField.KOLICINA, "is too large")
+            error(StockField.KOLICINA, "je preveliko")
     if cena is not None and not fits_numeric(cena, MONEY_PRECISION, MONEY_SCALE):
-        error(StockField.CENA_NA_ENOTO, f"must have at most {MONEY_SCALE} decimals")
+        error(StockField.CENA_NA_ENOTO, f"ima lahko največ {MONEY_SCALE} decimalni mesti")
 
     if (
         errors
@@ -211,7 +211,7 @@ def _check_consistency(
                 row.row_number,
                 None,
                 f"{row.sifra} / {row.lokacija} / {row.sarza or ''}",
-                f"duplicate of row {first} (same material, location and batch)",
+                f"podvojena vrstica {first} (isti material, lokacija in šarža)",
             )
         )
     unit = units.get(row.sifra)
@@ -221,7 +221,7 @@ def _check_consistency(
                 row.row_number,
                 StockField.MERSKA_ENOTA,
                 row.merska_enota,
-                f"unit differs from {unit[0]!r} in row {unit[1]} for the same material",
+                f"merska enota se razlikuje od {unit[0]!r} v vrstici {unit[1]} pri istem materialu",
             )
         )
     return errors

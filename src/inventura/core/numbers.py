@@ -47,30 +47,30 @@ class NumberFormat:
 def parse_decimal(value: object, number_format: NumberFormat) -> Decimal:
     """Convert a cell value (text from CSV, text or number from XLSX) to a finite Decimal."""
     if isinstance(value, bool):
-        raise NumberParseError("expected a number")
+        raise NumberParseError("pričakovano je število")
     if isinstance(value, int):
         return Decimal(value)
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise NumberParseError("expected a finite number")
+            raise NumberParseError("pričakovano je končno število")
         # XLSX stores numbers as binary floats; the shortest repr is the value that was typed.
         return Decimal(repr(value))
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise NumberParseError("expected a finite number")
+            raise NumberParseError("pričakovano je končno število")
         return value
     if isinstance(value, str):
         return _parse_text(value, number_format)
-    raise NumberParseError(f"unsupported value type {type(value).__name__}")
+    raise NumberParseError(f"nepodprta vrsta vrednosti {type(value).__name__}")
 
 
 def _parse_text(value: str, number_format: NumberFormat) -> Decimal:
     text = value.translate(_SPACES).strip()
     if not text:
-        raise NumberParseError("expected a number")
+        raise NumberParseError("pričakovano je število")
     match = number_format.pattern().match(text)
     if match is None:
-        raise NumberParseError("not a valid number")
+        raise NumberParseError("ni veljavno število")
     sign, integer, fraction = match.groups()
     if number_format.thousands_separator is not None:
         integer = integer.replace(number_format.thousands_separator, "")

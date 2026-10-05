@@ -37,20 +37,20 @@ def validate_counted_quantity(quantity: Decimal | None, unit: str) -> Decimal | 
 def check_quantity(quantity: Decimal, unit: str) -> Decimal:
     """The same rule as for book quantities: whole numbers, one decimal for m and l."""
     if not quantity.is_finite():
-        raise CountError("quantity must be a number")
+        raise CountError("količina mora biti število")
     if quantity < 0:
-        raise CountError("quantity must not be negative")
+        raise CountError("količina ne sme biti negativna")
     if not is_valid_quantity(quantity, unit):
         raise CountError(quantity_rule(unit))
     if not fits_numeric(quantity, QUANTITY_PRECISION, QUANTITY_SCALE):
-        raise CountError("quantity is too large")
+        raise CountError("količina je prevelika")
     return quantity.quantize(Decimal(1).scaleb(-QUANTITY_SCALE))
 
 
 def status_after_count(status: DocumentStatus) -> DocumentStatus:
     """Status of a document after a quantity on it has been recorded or cleared."""
     if status is DocumentStatus.ZAKLJUCEN:
-        raise DocumentClosedError("document is closed")
+        raise DocumentClosedError("dokument je zaključen")
     if status is DocumentStatus.ODPRT:
         return DocumentStatus.V_STETJU
     return status
@@ -67,7 +67,7 @@ def parse_counted_input(text: str) -> Decimal | None:
     try:
         return parse_decimal(text.replace(",", "."), _TYPED)
     except NumberParseError as exc:
-        raise CountError("quantity must be a number") from exc
+        raise CountError("količina mora biti število") from exc
 
 
 def parse_found_location(text: str, rack: str) -> Location:
@@ -77,12 +77,12 @@ def parse_found_location(text: str, rack: str) -> Location:
     except LocationError as exc:
         raise CountError(str(exc)) from exc
     if location.rack_key != rack_sort_key(rack):
-        raise CountError(f"location {location} is not in rack {rack}")
+        raise CountError(f"lokacija {location} ni v regalu {rack}")
     return location
 
 
 def validate_found_quantity(quantity: Decimal | None, unit: str) -> Decimal:
     """Found goods (not in the book) are recorded only with a quantity above zero."""
     if quantity is None or quantity == 0:
-        raise CountError("found goods need a quantity greater than 0")
+        raise CountError("najdeno blago mora imeti količino, večjo od 0")
     return check_quantity(quantity, unit)

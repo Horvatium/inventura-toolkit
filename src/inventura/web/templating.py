@@ -32,4 +32,16 @@ environment.globals["status_label"] = STATUS_LABELS.__getitem__
 # Changes with the stylesheet, so browsers do not keep an old one after an update.
 environment.globals["static_version"] = int((STATIC_DIR / "app.css").stat().st_mtime)
 
+FIELD_LABELS = {
+    "sifra": "Šifra",
+    "opis": "Opis",
+    "merska_enota": "ME",
+    "lokacija": "Lokacija",
+    "sarza": "Šarža",
+    "kolicina": "Zaloga",
+    "cena_na_enoto": "Cena",
+    "presteta_kolicina": "Prešteta količina",
+}
+environment.filters["field_label"] = lambda field: FIELD_LABELS.get(field or "", field or "")
+
 templates = Jinja2Templates(env=environment)

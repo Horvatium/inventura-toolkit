@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 _PATTERN = re.compile(r"^([A-Z]+)([0-9]{1,4})-([0-9]{1,4})-([0-9]{1,4})$", re.ASCII)
 
-FORMAT_HINT = "expected RACK-LEVEL-POSITION such as B6-1-1 or K2-03-11"
+FORMAT_HINT = "pričakovana oblika REGAL-NIVO-POLOŽAJ, npr. B6-1-1 ali K2-03-11"
 
 
 class LocationError(ValueError):
@@ -54,7 +54,7 @@ def parse_location(text: str) -> Location:
     raw = text.strip()
     match = _PATTERN.match(raw.upper())
     if match is None:
-        raise LocationError(f"invalid location, {FORMAT_HINT}")
+        raise LocationError(f"neveljavna lokacija, {FORMAT_HINT}")
     prefix, rack, level, position = match.groups()
     return Location(prefix, int(rack), int(level), int(position), raw=raw)
 
@@ -63,5 +63,5 @@ def rack_sort_key(rack: str) -> tuple[str, int]:
     """Natural sort key for a rack name such as B10."""
     match = re.fullmatch(r"([A-Z]+)([0-9]+)", rack.strip().upper(), re.ASCII)
     if match is None:
-        raise LocationError(f"invalid rack {rack!r}")
+        raise LocationError(f"neveljaven regal {rack!r}")
     return (match.group(1), int(match.group(2)))

@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Inventura{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v={{ static_version }}">
-<script src="https://cdn.jsdelivr.net/npm/htmx.org@2/dist/htmx.min.js" defer></script>
+{# htmx 2.0.11 (0BSD), served locally so counting works without internet in the warehouse. #}
+<script src="{{ url_for('static', path='htmx.min.js') }}" defer></script>
 </head>
 <body>
 <header class="topbar">

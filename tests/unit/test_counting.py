@@ -29,12 +29,12 @@ def test_valid_quantities_are_quantised(quantity: str, unit: str, expected: str)
 @pytest.mark.parametrize(
     ("quantity", "unit", "message"),
     [
-        ("-1", "kos", "must not be negative"),
-        ("1.5", "kos", "must be a whole number"),
-        ("1.5", "kg", "must be a whole number"),
-        ("1.25", "m", "at most 1 decimal"),
-        ("NaN", "kos", "must be a number"),
-        ("1E+12", "kos", "too large"),
+        ("-1", "kos", "ne sme biti negativna"),
+        ("1.5", "kos", "mora biti celo število"),
+        ("1.5", "kg", "mora biti celo število"),
+        ("1.25", "m", "največ 1 decimalko"),
+        ("NaN", "kos", "mora biti število"),
+        ("1E+12", "kos", "prevelika"),
     ],
 )
 def test_invalid_quantities(quantity: str, unit: str, message: str) -> None:
@@ -70,26 +70,26 @@ def test_parse_counted_input(text: str, expected: str | None) -> None:
 
 @pytest.mark.parametrize("text", ["abc", "1.234,5", "1,2,3", "12 kos"])
 def test_parse_counted_input_rejects_text(text: str) -> None:
-    with pytest.raises(CountError, match="must be a number"):
+    with pytest.raises(CountError, match="mora biti število"):
         parse_counted_input(text)
 
 
 def test_found_location_must_be_in_the_rack() -> None:
     assert parse_found_location("K2-3-11", "K2").canonical == "K2-3-11"
     assert parse_found_location("k02-03-11", "K2").rack == "K2"
-    with pytest.raises(CountError, match="not in rack K2"):
+    with pytest.raises(CountError, match="ni v regalu K2"):
         parse_found_location("K3-1-1", "K2")
-    with pytest.raises(CountError, match="RACK-LEVEL-POSITION"):
+    with pytest.raises(CountError, match="REGAL-NIVO-POLOŽAJ"):
         parse_found_location("K2-1", "K2")
 
 
 @pytest.mark.parametrize("quantity", [None, Decimal(0)])
 def test_found_goods_need_a_quantity(quantity: Decimal | None) -> None:
-    with pytest.raises(CountError, match="greater than 0"):
+    with pytest.raises(CountError, match="večjo od 0"):
         validate_found_quantity(quantity, "kos")
 
 
 def test_found_quantity_follows_unit_rule() -> None:
     assert validate_found_quantity(Decimal("2.5"), "m") == Decimal("2.500")
-    with pytest.raises(CountError, match="whole number"):
+    with pytest.raises(CountError, match="celo število"):
         validate_found_quantity(Decimal("2.5"), "kos")

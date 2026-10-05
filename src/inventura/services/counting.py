@@ -36,7 +36,7 @@ class CountSheetRejected(Exception):
     """The filled count sheet has row errors; nothing was stored."""
 
     def __init__(self, errors: list[RowError]) -> None:
-        super().__init__(f"the count sheet has {len(errors)} errors; nothing was imported")
+        super().__init__(f"popisni list ima napake ({len(errors)}), nič ni uvoženo")
         self.errors = errors
 
 
@@ -54,10 +54,10 @@ def record_count(
     """
     item = session.get(CountItem, item_id, with_for_update=True)
     if item is None:
-        raise NotFoundError(f"count item {item_id} not found")
+        raise NotFoundError(f"postavka {item_id} ne obstaja")
     document = _lock_document(session, item.document_id)
     if not session.scalar(select(is_latest_round()).where(CountItem.id == item.id)):
-        raise ConflictError(f"item {item_id} belongs to an earlier count round")
+        raise ConflictError(f"postavka {item_id} je iz prejšnjega kroga štetja")
 
     status = status_after_count(document.status)
     value = validate_counted_quantity(quantity, item.material.merska_enota)
@@ -88,13 +88,12 @@ def add_found_item(
     code = sifra.strip()
     material = session.scalars(select(Material).where(Material.sifra == code)).one_or_none()
     if material is None:
-        raise CountError(f"material {code!r} is not in the material master data")
+        raise CountError(f"materiala {code!r} ni v šifrantu")
     value = validate_found_quantity(quantity, material.merska_enota)
     batch = cell_text(sarza)
     if _position_exists(session, document_id, material.id, parsed, batch):
         raise ConflictError(
-            "this material, location and batch is already on the document; "
-            "enter the quantity in its row"
+            "ta material, lokacija in šarža so že na dokumentu; količino vpiši v njihovo vrstico"
         )
 
     item = _found_item(session, document, material, parsed, batch, value, counter, now)
@@ -107,11 +106,11 @@ def delete_found_item(session: Session, item_id: int) -> int:
     """Remove found goods added by mistake; returns the document id."""
     item = session.get(CountItem, item_id, with_for_update=True)
     if item is None:
-        raise NotFoundError(f"count item {item_id} not found")
+        raise NotFoundError(f"postavka {item_id} ne obstaja")
     document = _lock_document(session, item.document_id)
     status_after_count(document.status)  # raises for a closed document
     if not item.najdeno:
-        raise ConflictError("only found goods can be removed; book items stay on the document")
+        raise ConflictError("odstraniti je mogoče samo najdeno blago, knjižne postavke ostanejo")
     session.delete(item)
     session.flush()
     return document.id
@@ -187,7 +186,7 @@ def _lock_document(session: Session, document_id: int) -> CountDocument:
         select(CountDocument).where(CountDocument.id == document_id).with_for_update()
     ).one_or_none()
     if document is None:
-        raise NotFoundError(f"document {document_id} not found")
+        raise NotFoundError(f"dokument {document_id} ne obstaja")
     return document
 
 

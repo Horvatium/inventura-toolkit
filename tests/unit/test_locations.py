@@ -57,7 +57,7 @@ def test_source_text_is_kept_for_display() -> None:
     ],
 )
 def test_rejects_invalid_locations(text: str) -> None:
-    with pytest.raises(LocationError, match="RACK-LEVEL-POSITION"):
+    with pytest.raises(LocationError, match="REGAL-NIVO-POLOŽAJ"):
         parse_location(text)
 
 

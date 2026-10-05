@@ -5,7 +5,7 @@
     {% for error in errors %}
     <tr>
       <td class="num">{{ error.row_number }}</td>
-      <td>{{ error.field or "" }}</td>
+      <td>{{ error.field | field_label }}</td>
       <td>{{ error.value }}</td>
       <td>{{ error.message }}</td>
     </tr>
