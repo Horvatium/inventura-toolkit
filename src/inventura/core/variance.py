@@ -3,10 +3,9 @@
 A variance is computed from the latest count round and never stored. Its sign follows the
 count: positive is a surplus (more on the shelf than in the book), negative a shortage.
 
-Recount (config/variance_rules.yaml):
-    (|value| >= min_value AND |percent| >= min_percent) OR |value| >= always_value
-With a book quantity of 0 there is no percentage; the value alone decides, as if the
-percentage condition were met (any found goods are an infinite deviation).
+Every difference goes to a recount, found goods (book quantity 0) included; the unit
+price plays no part in that decision and only gives the variance its value in EUR.
+After round max_rounds (config/variance_rules.yaml) the counted quantity is accepted.
 """
 
 from collections.abc import Iterable
@@ -21,14 +20,9 @@ TENTH = Decimal("0.1")
 
 @dataclass(frozen=True, slots=True)
 class VarianceRules:
-    min_value: Decimal = Decimal("50.00")
-    min_percent: Decimal = Decimal("5")
-    always_value: Decimal = Decimal("500.00")
     max_rounds: int = 2  # after this round the result is accepted without another recount
 
     def __post_init__(self) -> None:
-        if min(self.min_value, self.min_percent, self.always_value) < 0:
-            raise ValueError("thresholds must not be negative")
         if self.max_rounds < 1:
             raise ValueError("max_rounds must be at least 1")
 
@@ -39,38 +33,24 @@ class Variance:
     counted: Decimal
     unit_price: Decimal
     quantity: Decimal  # counted - book
-    value: Decimal  # quantity * unit price, to the cent
+    value: Decimal  # quantity * unit price, to the cent; for reporting only
     percent: Decimal | None  # quantity / book * 100, to 0.1; None when the book is 0
-    recount: bool
 
     @property
     def has_difference(self) -> bool:
         return self.quantity != 0
 
+    @property
+    def recount(self) -> bool:
+        """Any difference is counted again."""
+        return self.has_difference
 
-def compute_variance(
-    book: Decimal, counted: Decimal, unit_price: Decimal, rules: VarianceRules
-) -> Variance:
+
+def compute_variance(book: Decimal, counted: Decimal, unit_price: Decimal) -> Variance:
     quantity = counted - book
     value = (quantity * unit_price).quantize(CENT, rounding=ROUND_HALF_UP)
     percent = None if book == 0 else (quantity / book * 100).quantize(TENTH, rounding=ROUND_HALF_UP)
-    return Variance(
-        book=book,
-        counted=counted,
-        unit_price=unit_price,
-        quantity=quantity,
-        value=value,
-        percent=percent,
-        recount=needs_recount(value, percent, rules),
-    )
-
-
-def needs_recount(value: Decimal, percent: Decimal | None, rules: VarianceRules) -> bool:
-    size = abs(value)
-    if size >= rules.always_value:
-        return True
-    percent_reached = percent is None or abs(percent) >= rules.min_percent
-    return size >= rules.min_value and percent_reached
+    return Variance(book, counted, unit_price, quantity, value, percent)
 
 
 def status_after_round(

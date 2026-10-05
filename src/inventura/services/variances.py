@@ -49,20 +49,16 @@ class RoundResult:
     recount_items: int  # items sent to the next round (0 when the document was closed)
 
 
-def item_variance(item: CountItem, rules: VarianceRules) -> ItemVariance:
+def item_variance(item: CountItem) -> ItemVariance:
     if item.presteta_kolicina is None:
         return ItemVariance(item, None)
-    variance = compute_variance(
-        item.knjizena_kolicina, item.presteta_kolicina, item.cena_na_enoto, rules
-    )
+    variance = compute_variance(item.knjizena_kolicina, item.presteta_kolicina, item.cena_na_enoto)
     return ItemVariance(item, variance)
 
 
-def document_variances(
-    session: Session, document_id: int, rules: VarianceRules
-) -> DocumentVariances:
+def document_variances(session: Session, document_id: int) -> DocumentVariances:
     progress = get_document(session, document_id)
-    items = [item_variance(item, rules) for item in document_items(session, document_id)]
+    items = [item_variance(item) for item in document_items(session, document_id)]
     return DocumentVariances(
         progress=progress,
         current_round=current_round(session, document_id),
@@ -74,8 +70,8 @@ def document_variances(
 def finish_round(
     session: Session, document_id: int, rules: VarianceRules, now: datetime
 ) -> RoundResult:
-    """Close the count round: items over the threshold go to a new round, else the document
-    is closed. Every item of the latest round must be counted first."""
+    """Close the count round: items with a difference go to a new round, else (or after the
+    last allowed round) the document is closed. Every item must be counted first."""
     document = session.scalars(
         select(CountDocument).where(CountDocument.id == document_id).with_for_update()
     ).one_or_none()
@@ -84,7 +80,7 @@ def finish_round(
     if document.status is DocumentStatus.ZAKLJUCEN:
         raise DocumentClosedError("dokument je že zaključen")
 
-    entries = [item_variance(item, rules) for item in document_items(session, document_id)]
+    entries = [item_variance(item) for item in document_items(session, document_id)]
     uncounted = sum(entry.variance is None for entry in entries)
     if uncounted:
         raise ConflictError(f"krog še ni končan, nepreštetih postavk: {uncounted}")
@@ -154,8 +150,7 @@ def snapshot_report(
                     variance=entry.variance,
                 )
                 for entry in (
-                    item_variance(item, rules)
-                    for item in document_items(session, progress.document.id)
+                    item_variance(item) for item in document_items(session, progress.document.id)
                 )
             ],
         )

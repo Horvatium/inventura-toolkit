@@ -1,14 +1,11 @@
-# When a counted item goes back for a recount (second round).
+# Recount rules.
 #
-#   recount if (|value| >= min_value AND |percent| >= min_percent)
-#           OR |value| >= always_value
+# Every item whose counted quantity differs from the book quantity goes to a
+# recount (a new count round), found goods included. The unit price does not
+# take part in that decision; it only gives the variance its value in EUR for
+# the report.
 #
-# value   = (counted - book) * unit price, in EUR
-# percent = (counted - book) / book * 100
-# With a book quantity of 0 there is no percentage and only min_value decides.
-# After round max_rounds the counted quantity is accepted and the document is closed.
+# After round max_rounds the counted quantity is accepted and the document is
+# closed, even if a difference remains.
 
-min_value: 50.00
-min_percent: 5
-always_value: 500.00
 max_rounds: 2

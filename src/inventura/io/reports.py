@@ -2,7 +2,7 @@
 
 Values are written as numbers (not formulas), so every viewer shows them without
 recalculating. Conditional formatting colours shortages red and surpluses green and
-marks the items that went to a recount.
+marks the items that were counted again.
 """
 
 from collections.abc import Sequence
@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import BinaryIO
 
 from openpyxl import Workbook
-from openpyxl.formatting.rule import CellIsRule, FormulaRule, Rule
+from openpyxl.formatting.rule import CellIsRule, Rule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.properties import PageSetupProperties
@@ -22,7 +22,6 @@ from inventura.core.variance import Variance, VarianceRules, VarianceSummary, su
 from inventura.io.formats import (
     MONEY_NUMBER_FORMAT,
     format_date,
-    format_decimal,
     quantity_number_format,
 )
 
@@ -78,17 +77,16 @@ def write_variance_report(
     for default in workbook.worksheets:
         workbook.remove(default)
     _summary(workbook.create_sheet("Povzetek"), racks, header)
-    _variances(workbook.create_sheet("Razlike"), racks, header.rules)
+    _variances(workbook.create_sheet("Razlike"), racks)
     _uncounted(workbook.create_sheet("Neprešteto"), racks)
     workbook.save(target)
 
 
 def rules_text(rules: VarianceRules) -> str:
     return (
-        f"Ponovno štetje: (|vrednost razlike| ≥ {format_decimal(rules.min_value, 2)} € in "
-        f"|odstopanje| ≥ {format_decimal(rules.min_percent, 0)} %) ali "
-        f"|vrednost razlike| ≥ {format_decimal(rules.always_value, 2)} €; "
-        f"največ {rules.max_rounds} kroga štetja."
+        "Vsaka razlika med knjižnim in preštetim stanjem gre v ponovno štetje; "
+        f"največje število krogov štetja: {rules.max_rounds}. "
+        "Cena služi samo za vrednost razlike."
     )
 
 
@@ -106,7 +104,6 @@ def _summary(sheet: Worksheet, racks: Sequence[ReportRack], header: ReportHeader
         ("Prešteto", 10),
         ("Neprešteto", 12),
         ("Z razliko", 11),
-        ("Ponovno štetje", 15),
         ("Višek (€)", 14),
         ("Manjko (€)", 14),
         ("Neto razlika (€)", 17),
@@ -126,7 +123,7 @@ def _summary(sheet: Worksheet, racks: Sequence[ReportRack], header: ReportHeader
         cell.fill = _TOTAL_FILL
 
     last = row
-    net = f"K{first + 1}:K{last}"
+    net = f"J{first + 1}:J{last}"
     sheet.conditional_formatting.add(
         net, _cell_rule(operator="lessThan", formula=["0"], font=_RED_FONT)
     )
@@ -138,7 +135,7 @@ def _summary(sheet: Worksheet, racks: Sequence[ReportRack], header: ReportHeader
         _cell_rule(operator="greaterThan", formula=["0"], fill=_ORANGE_FILL),
     )
     sheet.conditional_formatting.add(
-        f"H{first + 1}:H{last}", _cell_rule(operator="greaterThan", formula=["0"], fill=_RED_FILL)
+        f"G{first + 1}:G{last}", _cell_rule(operator="greaterThan", formula=["0"], fill=_RED_FILL)
     )
     sheet.freeze_panes = f"A{first + 1}"
     _print_setup(sheet, first, landscape=True)
@@ -151,7 +148,6 @@ def _summary_row(sheet: Worksheet, row: int, labels: list[str | int], s: Varianc
         s.counted,
         s.uncounted,
         s.with_difference,
-        s.recount,
         s.surplus_value,
         s.shortage_value,
         s.net_value,
@@ -160,11 +156,11 @@ def _summary_row(sheet: Worksheet, row: int, labels: list[str | int], s: Varianc
     for column, value in enumerate(values, start=1):
         cell = sheet.cell(row, column, value)
         cell.border = _BORDER
-        if column >= 9:
-            cell.number_format = SIGNED_MONEY_FORMAT if column == 11 else MONEY_NUMBER_FORMAT
+        if column >= 8:
+            cell.number_format = SIGNED_MONEY_FORMAT if column == 10 else MONEY_NUMBER_FORMAT
 
 
-def _variances(sheet: Worksheet, racks: Sequence[ReportRack], rules: VarianceRules) -> None:
+def _variances(sheet: Worksheet, racks: Sequence[ReportRack]) -> None:
     columns = [
         ("Regal", 8),
         ("Lokacija", 11),
@@ -179,7 +175,6 @@ def _variances(sheet: Worksheet, racks: Sequence[ReportRack], rules: VarianceRul
         ("Vrednost razlike (€)", 19),
         ("Odstopanje", 12),
         ("Krog", 6),
-        ("Ponovno štetje", 15),
         ("Najdeno", 9),
     ]
     _header_row(sheet, 1, columns)
@@ -205,7 +200,6 @@ def _variances(sheet: Worksheet, racks: Sequence[ReportRack], rules: VarianceRul
                 variance.value,
                 None if variance.percent is None else variance.percent / 100,
                 line.krog,
-                "da" if variance.recount else "ne",
                 "da" if line.najdeno else "",
             ]
             for column, value in enumerate(values, start=1):
@@ -228,15 +222,11 @@ def _variances(sheet: Worksheet, racks: Sequence[ReportRack], rules: VarianceRul
         values_range,
         _cell_rule(operator="greaterThan", formula=["0"], fill=_GREEN_FILL, font=_GREEN_FONT),
     )
-    # Variances that alone force a recount stand out across the whole row.
-    always = str(rules.always_value)
+    # Items counted more than once (a recount) stand out.
     sheet.conditional_formatting.add(
-        f"A2:O{row}", _formula_rule(formula=[f"ABS($K2)>={always}"], font=Font(bold=True))
+        f"M2:M{row}", _cell_rule(operator="greaterThan", formula=["1"], fill=_ORANGE_FILL)
     )
-    sheet.conditional_formatting.add(
-        f"N2:N{row}", _cell_rule(operator="equal", formula=['"da"'], fill=_ORANGE_FILL)
-    )
-    sheet.auto_filter.ref = f"A1:O{row}"
+    sheet.auto_filter.ref = f"A1:N{row}"
     sheet.freeze_panes = "A2"
     _print_setup(sheet, 1, landscape=True)
 
@@ -298,9 +288,4 @@ def _cell_rule(
     operator: str, formula: list[str], fill: PatternFill | None = None, font: Font | None = None
 ) -> Rule:
     rule: Rule = CellIsRule(operator=operator, formula=formula, fill=fill, font=font)  # type: ignore[no-untyped-call]
-    return rule
-
-
-def _formula_rule(formula: list[str], font: Font | None = None) -> Rule:
-    rule: Rule = FormulaRule(formula=formula, font=font)  # type: ignore[no-untyped-call]
     return rule

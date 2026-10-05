@@ -23,33 +23,30 @@ D = Decimal
 
 
 def test_repository_rules_are_the_business_rules() -> None:
-    rules = load_variance_rules(REPO_CONFIG)
-    assert rules == VarianceRules(D("50.00"), D("5"), D("500.00"), 2)
-    assert isinstance(rules.min_value, Decimal)
-    assert str(rules.min_value) == "50.00"  # read as text, never through float
+    assert load_variance_rules(REPO_CONFIG) == VarianceRules(max_rounds=2)
 
 
 def test_invalid_rules_file(tmp_path: Path) -> None:
     path = tmp_path / "rules.yaml"
-    path.write_text("min_value: -1\nmin_percent: 5\nalways_value: 500\nmax_rounds: 2\n")
+    path.write_text("max_rounds: 0\n")
     with pytest.raises(ValidationError):
         load_variance_rules(path)
-    path.write_text("min_value: 50\nmin_percent: 5\nalways_value: 500\nmax_rounds: 2\nx: 1\n")
+    path.write_text("max_rounds: 2\nmin_value: 50\n")  # old price thresholds are rejected
     with pytest.raises(ValidationError):
         load_variance_rules(path)
 
 
 def test_rules_text() -> None:
     assert rules_text(RULES) == (
-        "Ponovno štetje: (|vrednost razlike| ≥ 50,00 € in |odstopanje| ≥ 5 %) "
-        "ali |vrednost razlike| ≥ 500,00 €; največ 2 kroga štetja."
+        "Vsaka razlika med knjižnim in preštetim stanjem gre v ponovno štetje; "
+        "največje število krogov štetja: 2. Cena služi samo za vrednost razlike."
     )
 
 
 def line(
     lokacija: str, book: str, counted: str | None, price: str = "10.00", **kw: object
 ) -> ReportLine:
-    variance = None if counted is None else compute_variance(D(book), D(counted), D(price), RULES)
+    variance = None if counted is None else compute_variance(D(book), D(counted), D(price))
     return ReportLine(
         lokacija=lokacija,
         sifra=str(kw.get("sifra", "0000001")),
@@ -90,10 +87,10 @@ def test_report_sheets_and_summary() -> None:
     summary = workbook["Povzetek"]
     assert summary["A1"].value == "Inventura – poročilo o razlikah"
     rows = list(summary.iter_rows(min_row=6, max_row=8, values_only=True))
-    assert rows[0] == (1, "B2", "Zaključen", 3, 3, 0, 2, 1, 6, -120, -114, 126)
-    assert rows[1][:8] == (2, "B10", "V štetju", 1, 0, 1, 0, 0)
+    assert rows[0] == (1, "B2", "Zaključen", 3, 3, 0, 2, 6, -120, -114, 126)
+    assert rows[1][:7] == (2, "B10", "V štetju", 1, 0, 1, 0)
     assert rows[2][1] == "Skupaj"
-    assert rows[2][3:] == (4, 3, 1, 2, 1, 6, -120, -114, 126)
+    assert rows[2][3:] == (4, 3, 1, 2, 6, -120, -114, 126)
 
 
 def test_report_variance_rows() -> None:
@@ -113,12 +110,12 @@ def test_report_variance_rows() -> None:
     rows = list(sheet.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 2  # the item without a difference is left out
     assert rows[0][:4] == ("B2", "B2-1-1", "0000001", "Material")
-    assert rows[0][6:] == (10, 4, -6, 20, -120, -0.6, 2, "da", None)
-    assert rows[1][6:] == (0, 2.5, 2.5, 3, 7.5, None, 1, "ne", "da")
+    assert rows[0][6:] == (10, 4, -6, 20, -120, -0.6, 2, None)
+    assert rows[1][6:] == (0, 2.5, 2.5, 3, 7.5, None, 1, "da")
     assert sheet["L2"].number_format == "0.0%"
-    assert sheet.auto_filter.ref == "A1:O3"
+    assert sheet.auto_filter.ref == "A1:N3"
     ranges = {str(rule.sqref) for rule in sheet.conditional_formatting}
-    assert {"K2:K3", "A2:O3", "N2:N3"} <= ranges
+    assert {"K2:K3", "M2:M3"} <= ranges
 
 
 def test_report_without_variances_or_uncounted_items() -> None:

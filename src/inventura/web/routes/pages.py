@@ -202,7 +202,7 @@ def variances_page(
     request: Request, document_id: int, session: SessionDep, rules: RulesDep
 ) -> HTMLResponse:
     """Variances for the count manager (not shown to counters, who count blind)."""
-    result = variances.document_variances(session, document_id, rules)
+    result = variances.document_variances(session, document_id)
     context = {
         "result": result,
         "document": result.progress.document,

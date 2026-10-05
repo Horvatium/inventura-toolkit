@@ -44,7 +44,8 @@ def test_variances_are_computed_from_the_counts(
     rows = {row["sifra"]: row for row in body["postavke"]}
     assert rows["0000001"]["razlika_kolicina"] == "-20.000"
     assert rows["0000001"]["razlika_vrednost"] == "-3.00"
-    assert rows["0000001"]["ponovno_stetje"] is False
+    assert rows["0000001"]["ponovno_stetje"] is True  # any difference, whatever its value
+    assert rows["0000002"]["ponovno_stetje"] is False
     assert rows["0000002"]["razlika_vrednost"] == "0.00"
     assert rows["0000003"]["razlika_vrednost"] == "-52.50"
     assert rows["0000003"]["odstopanje_odstotek"] == "-75.0"
@@ -54,7 +55,7 @@ def test_variances_are_computed_from_the_counts(
         "presteto": 3,
         "nepresteto": 0,
         "z_razliko": 2,
-        "za_ponovno_stetje": 1,
+        "za_ponovno_stetje": 2,
         "visek": "0.00",
         "manjko": "-55.50",
         "neto": "-55.50",
@@ -80,26 +81,27 @@ def test_recount_round_and_closing(client: TestClient, document: dict[str, Any])
     assert result.json() == {
         "status": "ponovno_stetje",
         "zakljuceni_krog": 1,
-        "za_ponovno_stetje": 1,
+        "za_ponovno_stetje": 2,
     }
 
-    # Only the oil goes to the second round; its new row starts uncounted.
+    # The screws and the oil go to the second round; their new rows start uncounted.
     detail = client.get(f"/api/documents/{document['id']}").json()
     rounds = {i["sifra"]: (i["krog"], i["presteta_kolicina"]) for i in detail["postavke"]}
     assert rounds == {
-        "0000001": (1, "100.000"),
+        "0000001": (2, None),
         "0000002": (1, "12.500"),
         "0000003": (2, None),
     }
     assert detail["status"] == "ponovno_stetje"
 
     # Items outside the recount are locked; the old row of the oil is history.
-    locked = count(client, first_round["0000001"], "120")
+    locked = count(client, first_round["0000002"], "12")
     assert locked.status_code == 409
     assert locked.json()["detail"] == "v ponovnem štetju se štejejo samo postavke za ponovno štetje"
     assert count(client, first_round["0000003"], "6").status_code == 409
 
     second = ids(client, document)["0000003"]
+    assert count(client, ids(client, document)["0000001"], "120").status_code == 200
     assert count(client, second, "19").status_code == 200
     variances = client.get(f"/api/documents/{document['id']}/variances").json()
     assert {r["sifra"]: r["razlika_vrednost"] for r in variances["postavke"]}["0000003"] == "-3.50"
@@ -116,14 +118,17 @@ def test_last_round_accepts_the_count_even_over_the_threshold(
 ) -> None:
     count_all(client, document)
     finish(client, document)
-    count(client, ids(client, document)["0000003"], "5")  # the same shortage again
+    count(client, ids(client, document)["0000001"], "100")  # the same shortages again
+    count(client, ids(client, document)["0000003"], "5")
     assert finish(client, document).json()["status"] == "zakljucen"
 
 
 def test_document_without_variances_closes_at_once(
     client: TestClient, document: dict[str, Any]
 ) -> None:
-    count_all(client, document, olje="20")
+    items = ids(client, document)
+    for sifra, quantity in (("0000001", "120"), ("0000002", "12.5"), ("0000003", "20")):
+        count(client, items[sifra], quantity)
     assert finish(client, document).json() == {
         "status": "zakljucen",
         "zakljuceni_krog": 1,
@@ -131,10 +136,10 @@ def test_document_without_variances_closes_at_once(
     }
 
 
-def test_found_goods_with_book_zero_go_to_recount_by_value(
-    client: TestClient, document: dict[str, Any]
-) -> None:
-    count_all(client, document, olje="20")
+def test_found_goods_always_go_to_recount(client: TestClient, document: dict[str, Any]) -> None:
+    items = ids(client, document)
+    for sifra, quantity in (("0000001", "120"), ("0000002", "12.5"), ("0000003", "20")):
+        count(client, items[sifra], quantity)
     found = client.post(
         f"/api/documents/{document['id']}/items",
         json={"lokacija": "B6-3-1", "sifra": "0000009", "presteta_kolicina": "2"},  # 2 x 40 €
@@ -159,16 +164,16 @@ def test_recount_sheet_and_page_show_only_recount_items(
     workbook = load_workbook(BytesIO(sheet.content))
     b6 = workbook["B6"]
     assert b6["A1"].value == "Popisni list – regal B6 – ponovno štetje (krog 2)"
-    assert [b6[f"C{r}"].value for r in range(6, 8)] == ["0000003", None]
+    assert [b6[f"C{r}"].value for r in range(6, 9)] == ["0000001", "0000003", None]
 
     page = client.get(f"/documents/{document['id']}").text
     assert "Ponovno štetje (krog 2)" in page
-    assert page.count('class="qty"') == 1
-    assert "0 / 1" in page
+    assert page.count('class="qty"') == 2
+    assert "0 / 2" in page
 
     # A filled sheet may not count items outside the recount.
-    b6["G6"] = 19
-    b6["B7"], b6["C7"], b6["G7"] = "B6-1-1", "0000001", 110
+    b6["G6"] = 110
+    b6["B8"], b6["C8"], b6["G8"] = "B6-1-2", "0000002", 12
     buffer = BytesIO()
     workbook.save(buffer)
     upload = client.post(
@@ -184,7 +189,7 @@ def test_variances_page_and_finish_from_the_page(
 ) -> None:
     count_all(client, document)
     page = client.get(f"/documents/{document['id']}/variances").text
-    assert "Zaključi krog in pošlji 1 v ponovno štetje" in page
+    assert "Zaključi krog in pošlji 2 v ponovno štetje" in page
     assert "-52,50 €" in page
     assert "-75,0 %" in page
 
@@ -203,7 +208,7 @@ def test_report(client: TestClient, document: dict[str, Any]) -> None:
     workbook = load_workbook(BytesIO(response.content))
     summary = list(workbook["Povzetek"].iter_rows(min_row=6, values_only=True))
     racks = {row[1]: row for row in summary}
-    assert racks["B6"][3:] == (3, 3, 0, 2, 1, 0, -55.5, -55.5, 55.5)
+    assert racks["B6"][3:] == (3, 3, 0, 2, 0, -55.5, -55.5, 55.5)
     assert racks["K1"][3:6] == (1, 0, 1)
     variances = list(workbook["Razlike"].iter_rows(min_row=2, values_only=True))
     assert [(row[2], row[10]) for row in variances] == [("0000001", -3), ("0000003", -52.5)]

@@ -16,7 +16,6 @@
 
   <div class="summary-grid">
     <div class="metric"><span class="label">Z razliko</span><span class="value">{{ s.with_difference }}</span></div>
-    <div class="metric"><span class="label">Za ponovno štetje</span><span class="value">{{ s.recount }}</span></div>
     <div class="metric"><span class="label">Višek</span><span class="value pos">{{ s.surplus_value | money }}</span></div>
     <div class="metric"><span class="label">Manjko</span><span class="value neg">{{ s.shortage_value | money }}</span></div>
     <div class="metric"><span class="label">Neto razlika</span>
@@ -60,7 +59,7 @@
   <tbody>
     {% for entry in result.items %}
     {% set item = entry.item %}{% set v = entry.variance %}{% set unit = item.material.merska_enota %}
-    <tr class="{{ 'uncounted' if v is none else 'recount' if v.recount else '' }}{{ ' no-diff' if v is none or not v.has_difference }}">
+    <tr class="{{ 'uncounted' if v is none else 'recount' if v.has_difference else '' }}{{ ' no-diff' if v is none or not v.has_difference }}">
       <td class="loc">{{ item.lokacija }}</td>
       <td class="material">
         <span class="code">{{ item.material.sifra }}</span>
@@ -78,7 +77,7 @@
       <td class="num {{ 'neg' if v.value < 0 else 'pos' if v.value > 0 }}">{{ v.value | money }}</td>
       <td class="num">{{ v.percent | percent }}</td>
       {% endif %}
-      <td>{{ item.krog }}{% if v and v.recount %} · <strong>ponovno</strong>{% endif %}</td>
+      <td>{{ item.krog }}</td>
     </tr>
     {% endfor %}
   </tbody>

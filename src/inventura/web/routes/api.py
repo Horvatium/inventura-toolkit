@@ -241,13 +241,9 @@ def import_count_sheet(
 
 
 @router.get("/documents/{document_id}/variances", tags=["variances"])
-def document_variances(
-    document_id: int, session: SessionDep, rules: RulesDep
-) -> DocumentVariancesOut:
+def document_variances(document_id: int, session: SessionDep) -> DocumentVariancesOut:
     """Variances of the latest count round. Not stored: always computed from the counts."""
-    return DocumentVariancesOut.of_variances(
-        variances.document_variances(session, document_id, rules)
-    )
+    return DocumentVariancesOut.of_variances(variances.document_variances(session, document_id))
 
 
 @router.post(
@@ -256,8 +252,8 @@ def document_variances(
     responses={409: {"description": "Items not counted yet, or the document is closed"}},
 )
 def finish_round(document_id: int, session: SessionDep, rules: RulesDep) -> RoundResultOut:
-    """Finish the count round: items over the recount threshold get a new round,
-    otherwise (or after the last allowed round) the document is closed."""
+    """Finish the count round: items with a difference get a new round, otherwise
+    (or after the last allowed round) the document is closed."""
     result = variances.finish_round(session, document_id, rules, datetime.now(UTC))
     session.commit()
     return RoundResultOut.of(result)
