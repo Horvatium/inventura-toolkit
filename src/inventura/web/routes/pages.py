@@ -16,8 +16,10 @@ from inventura.io.count_sheet_reader import CountSheetError
 from inventura.io.importer import UnreadableFileError, UnsupportedFileError, import_stock_bytes
 from inventura.io.reports import rules_text
 from inventura.services import ConflictError, counting, documents, snapshots, variances
+from inventura.services.dashboard import build_dashboard, latest_counted_snapshot
 from inventura.services.documents import DocumentProgress
 from inventura.web.dependencies import MappingDep, RulesDep, SessionDep, SettingsDep
+from inventura.web.schemas import DashboardOut
 from inventura.web.templating import templates
 
 router = APIRouter(include_in_schema=False)
@@ -221,6 +223,37 @@ def finish_round(document_id: int, session: SessionDep, rules: RulesDep) -> Redi
     return RedirectResponse(
         f"/documents/{document_id}/variances", status_code=status.HTTP_303_SEE_OTHER
     )
+
+
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard_latest(request: Request, session: SessionDep) -> Response:
+    """The dashboard of the newest inventory, or a hint when none has started."""
+    snapshot_id = latest_counted_snapshot(session)
+    if snapshot_id is None:
+        return templates.TemplateResponse(request, "dashboard_empty.html", {})
+    return RedirectResponse(f"/dashboard/{snapshot_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/dashboard/{snapshot_id}", response_class=HTMLResponse)
+def dashboard_page(request: Request, snapshot_id: int, session: SessionDep) -> HTMLResponse:
+    context = _dashboard_context(session, snapshot_id)
+    return templates.TemplateResponse(request, "dashboard.html", context)
+
+
+@router.get("/dashboard/{snapshot_id}/content", response_class=HTMLResponse)
+def dashboard_content(request: Request, snapshot_id: int, session: SessionDep) -> HTMLResponse:
+    """The part of the dashboard that refreshes itself while counting is under way."""
+    context = _dashboard_context(session, snapshot_id)
+    return templates.TemplateResponse(request, "partials/dashboard_content.html", context)
+
+
+def _dashboard_context(session: SessionDep, snapshot_id: int) -> dict[str, Any]:
+    dashboard = build_dashboard(session, snapshot_id)
+    return {
+        "dashboard": dashboard,
+        "data": DashboardOut.of(dashboard).model_dump(mode="json"),
+        "refreshed": datetime.now().astimezone(),
+    }
 
 
 def _count_progress(session: SessionDep, document_id: int) -> tuple[DocumentProgress, int | None]:

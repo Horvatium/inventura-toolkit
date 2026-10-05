@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Nadzorna plošča · Inventura{% endblock %}
+{% block topbar %}
+<span class="crumb">Uvoz {{ dashboard.snapshot.id }}</span>
+{% endblock %}
+{% block content %}
+{% include "partials/dashboard_content.html" %}
+{% endblock %}
+{% block scripts %}
+{# Chart.js 4.5.1 (MIT), served locally like htmx. #}
+<script src="{{ url_for('static', path='chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', path='dashboard.js') }}?v={{ static_version }}"></script>
+{% endblock %}

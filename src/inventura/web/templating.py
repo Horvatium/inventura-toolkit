@@ -1,5 +1,6 @@
 """Jinja2 templates for the HTML pages."""
 
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -25,14 +26,18 @@ environment = Environment(
 environment.filters["quantity"] = format_quantity
 environment.filters["input_quantity"] = format_input_quantity
 environment.filters["date"] = format_date
+environment.filters["number"] = lambda value: format_decimal(Decimal(value), 0)
+environment.filters["euro"] = lambda value: format_decimal(value, 2) + " €"
 environment.filters["money"] = lambda value: (
     ("+" if value > 0 else "") + format_decimal(value, 2) + " €"
 )
 environment.filters["percent"] = lambda value: (
     "–" if value is None else ("+" if value > 0 else "") + format_decimal(value, 1) + " %"
 )
-# Changes with the stylesheet, so browsers do not keep an old one after an update.
-environment.globals["static_version"] = int((STATIC_DIR / "app.css").stat().st_mtime)
+# Changes with any static file, so browsers do not keep an old one after an update.
+environment.globals["static_version"] = int(
+    max(path.stat().st_mtime for path in STATIC_DIR.iterdir() if path.is_file())
+)
 
 FIELD_LABELS = {
     "sifra": "Šifra",

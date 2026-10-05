@@ -8,6 +8,7 @@ from inventura.core.counting import DocumentStatus
 from inventura.core.variance import (
     VarianceRules,
     compute_variance,
+    largest_by_value,
     status_after_round,
     summarize,
 )
@@ -106,3 +107,18 @@ def test_value_is_quantity_times_price(book: Decimal, counted: Decimal, price: D
     variance = compute_variance(book, counted, price)
     assert abs(variance.value - (counted - book) * price) <= D("0.005")
     assert (variance.value > 0) == (variance.quantity > 0 and price > 0 and variance.value != 0)
+
+
+def test_largest_by_value() -> None:
+    entries = [
+        ("a", compute_variance(D("10"), D("9"), D("5000.00"))),  # -5000
+        ("b", None),  # not counted
+        ("c", compute_variance(D("100"), D("100"), D("1.00"))),  # no difference
+        ("d", compute_variance(D("1000"), D("1200"), D("0.02"))),  # +4, quantity 200
+        ("e", compute_variance(D("0"), D("2"), D("2.00"))),  # +4, quantity 2
+        ("f", compute_variance(D("5"), D("1"), D("100.00"))),  # -400
+    ]
+    ranked = largest_by_value(entries, limit=3)
+    assert [key for key, _ in ranked] == ["a", "f", "d"]  # ties: the bigger quantity first
+    assert [key for key, _ in largest_by_value(entries, limit=10)] == ["a", "f", "d", "e"]
+    assert largest_by_value([], limit=5) == []

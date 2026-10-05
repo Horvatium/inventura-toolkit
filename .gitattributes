@@ -17,3 +17,4 @@
 
 # Vendored third-party code.
 src/inventura/web/static/htmx.min.js linguist-vendored -diff
+src/inventura/web/static/chart.umd.min.js linguist-vendored -diff

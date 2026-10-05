@@ -13,6 +13,7 @@ from inventura.core.stock import RowError
 from inventura.core.variance import VarianceSummary
 from inventura.db.models import CountItem
 from inventura.services.counting import SheetImportSummary
+from inventura.services.dashboard import Dashboard, TopVariance
 from inventura.services.documents import DocumentProgress
 from inventura.services.snapshots import SnapshotSummary
 from inventura.services.variances import DocumentVariances, ItemVariance, RoundResult
@@ -259,3 +260,85 @@ class RoundResultOut(BaseModel):
             zakljuceni_krog=result.finished_round,
             za_ponovno_stetje=result.recount_items,
         )
+
+
+class RackDashboardOut(BaseModel):
+    dokument_id: int
+    zaporedna_st: int
+    regal: str
+    status: DocumentStatus
+    postavk: int
+    presteto: int
+    z_razliko: int
+    visek: Decimal
+    manjko: Decimal
+    neto: Decimal
+
+
+class TopVarianceOut(BaseModel):
+    dokument_id: int
+    regal: str
+    lokacija: str
+    sifra: str
+    opis: str
+    merska_enota: str
+    knjizena_kolicina: Decimal
+    presteta_kolicina: Decimal
+    razlika_kolicina: Decimal
+    razlika_vrednost: Decimal
+
+
+class DashboardOut(BaseModel):
+    uvoz_id: int
+    izvorna_datoteka: str
+    uvozeno_ob: datetime
+    dokumentov: int
+    zakljucenih: int
+    po_statusu: dict[DocumentStatus, int]
+    povzetek: VarianceSummaryOut
+    regali: list[RackDashboardOut]
+    najvecje_razlike: list[TopVarianceOut]
+
+    @classmethod
+    def of(cls, dashboard: Dashboard) -> "DashboardOut":
+        return cls(
+            uvoz_id=dashboard.snapshot.id,
+            izvorna_datoteka=dashboard.snapshot.izvorna_datoteka,
+            uvozeno_ob=dashboard.snapshot.uvozeno_ob,
+            dokumentov=dashboard.documents,
+            zakljucenih=dashboard.closed,
+            po_statusu=dashboard.status_counts,
+            povzetek=VarianceSummaryOut.of(dashboard.totals),
+            regali=[
+                RackDashboardOut(
+                    dokument_id=rack.progress.document.id,
+                    zaporedna_st=rack.progress.document.zaporedna_st,
+                    regal=rack.progress.document.regal,
+                    status=rack.progress.document.status,
+                    postavk=rack.progress.item_count,
+                    presteto=rack.progress.counted,
+                    z_razliko=rack.summary.with_difference,
+                    visek=rack.summary.surplus_value,
+                    manjko=rack.summary.shortage_value,
+                    neto=rack.summary.net_value,
+                )
+                for rack in dashboard.racks
+            ],
+            najvecje_razlike=[_top(top) for top in dashboard.top],
+        )
+
+
+def _top(top: TopVariance) -> TopVarianceOut:
+    item, variance = top.item, top.variance
+    return TopVarianceOut(
+        dokument_id=top.document_id,
+        regal=top.rack,
+        lokacija=item.lokacija,
+        sifra=item.material.sifra,
+        opis=item.material.opis,
+        merska_enota=item.material.merska_enota,
+        knjizena_kolicina=variance.book,
+        presteta_kolicina=variance.counted,
+        razlika_kolicina=variance.quantity,
+        razlika_vrednost=variance.value,
+    )

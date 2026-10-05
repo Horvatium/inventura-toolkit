@@ -1,0 +1,126 @@
+{% set t = dashboard.totals %}
+{% set snapshot = dashboard.snapshot %}
+{% set percent = (100 * t.counted / t.items) if t.items else 0 %}
+<div id="dashboard" hx-get="/dashboard/{{ snapshot.id }}/content" hx-trigger="every 30s"
+     hx-swap="outerHTML">
+<section class="card dash-head">
+  <div>
+    <h1>Nadzorna plošča</h1>
+    <p class="muted">Uvoz {{ snapshot.id }} · {{ snapshot.izvorna_datoteka }} ·
+      uvoženo {{ snapshot.uvozeno_ob | date }}</p>
+  </div>
+  <p class="links">
+    <span class="muted">Osveženo ob {{ refreshed.strftime("%H:%M:%S") }}</span>
+    <a href="/api/snapshots/{{ snapshot.id }}/report.xlsx">Poročilo (Excel)</a>
+  </p>
+</section>
+
+<section class="kpis" aria-label="Povzetek">
+  <div class="tile">
+    <span class="label">Prešteto</span>
+    <span class="value">{{ percent | round(0) | int }} %</span>
+    <span class="sub">{{ t.counted | number }} od {{ t.items | number }} postavk</span>
+    <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="{{ percent | round(0) | int }}"><span style="width: {{ percent | round(1) }}%"></span></div>
+  </div>
+  <div class="tile">
+    <span class="label">Zaključeni dokumenti</span>
+    <span class="value">{{ dashboard.closed }} / {{ dashboard.documents }}</span>
+    <span class="sub">
+      {% for status in ["v_stetju", "ponovno_stetje", "odprt"] %}
+      {% set n = dashboard.status_counts.get(status, 0) %}
+      {% if n %}<span class="badge {{ status }}">{{ n }} {{ {"v_stetju": "v štetju", "ponovno_stetje": "ponovno štetje", "odprt": "odprtih"}[status] }}</span>{% endif %}
+      {% endfor %}
+    </span>
+  </div>
+  <div class="tile">
+    <span class="label">Postavke z razliko</span>
+    <span class="value">{{ t.with_difference | number }}</span>
+    <span class="sub"><span class="nowrap">višek {{ t.surplus_value | money }}</span>
+      <span class="nowrap">manjko {{ t.shortage_value | money }}</span></span>
+  </div>
+  <div class="tile">
+    <span class="label">Neto vrednost razlik</span>
+    <span class="value">{{ t.net_value | money }}</span>
+    <span class="sub">vsota absolutnih razlik <span class="nowrap">{{ t.absolute_value | euro }}</span></span>
+  </div>
+</section>
+
+<section class="charts">
+  <figure class="card chart-card">
+    <figcaption><h2>Napredek po regalih</h2><span class="muted">delež preštetih postavk</span></figcaption>
+    <div class="chart-box" style="height: {{ 40 + 28 * dashboard.racks | length }}px">
+      <canvas id="chart-progress" role="img" aria-label="Napredek štetja po regalih; podatki so v tabeli spodaj"></canvas>
+    </div>
+  </figure>
+  <figure class="card chart-card">
+    <figcaption>
+      <h2>Neto razlika po regalih</h2>
+      <span class="legend"><span class="key pos"></span>višek <span class="key neg"></span>manjko</span>
+    </figcaption>
+    <div class="chart-box" style="height: {{ 40 + 28 * dashboard.racks | length }}px">
+      <canvas id="chart-net" role="img" aria-label="Neto vrednost razlik po regalih; podatki so v tabeli spodaj"></canvas>
+    </div>
+  </figure>
+</section>
+
+<section class="card">
+  <h2>Največje razlike po vrednosti</h2>
+  {% if dashboard.top %}
+  <div class="table-wrap">
+  <table class="variances">
+    <thead>
+      <tr><th>Regal</th><th>Lokacija</th><th>Material</th><th>ME</th>
+        <th class="num">Knjižna</th><th class="num">Prešteta</th><th class="num">Razlika</th><th class="num">Vrednost</th></tr>
+    </thead>
+    <tbody>
+      {% for top in dashboard.top %}
+      {% set unit = top.item.material.merska_enota %}{% set v = top.variance %}
+      <tr>
+        <td><a href="/documents/{{ top.document_id }}/variances">{{ top.rack }}</a></td>
+        <td class="loc">{{ top.item.lokacija }}</td>
+        <td class="material"><span class="code">{{ top.item.material.sifra }}</span>
+          <span class="desc">{{ top.item.material.opis }}</span></td>
+        <td>{{ unit }}</td>
+        <td class="num">{{ v.book | quantity(unit) }}</td>
+        <td class="num">{{ v.counted | quantity(unit) }}</td>
+        <td class="num">{{ ('+' if v.quantity > 0 else '') ~ (v.quantity | quantity(unit)) }}</td>
+        <td class="num"><strong>{{ v.value | money }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">Ni še preštetih postavk z razliko.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Po regalih</h2>
+  <div class="table-wrap">
+  <table class="documents">
+    <thead>
+      <tr><th>Št.</th><th>Regal</th><th>Status</th><th>Prešteto</th>
+        <th class="num">Z razliko</th><th class="num">Neto razlika</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for rack in dashboard.racks %}
+      {% set p = rack.progress %}
+      <tr>
+        <td class="num">{{ p.document.zaporedna_st }}</td>
+        <td><a class="rack" href="/documents/{{ p.document.id }}">{{ p.document.regal }}</a></td>
+        <td><span class="badge {{ p.document.status.value }}">{{ p.document.status.label }}</span></td>
+        <td>{% include "partials/progress_bar.html" %}</td>
+        <td class="num">{{ rack.summary.with_difference }}</td>
+        <td class="num">{{ rack.summary.net_value | money }}</td>
+        <td class="links"><a href="/documents/{{ p.document.id }}/variances">Razlike</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<script type="application/json" id="dashboard-data">{{ data | tojson }}</script>
+</div>

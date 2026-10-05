@@ -21,10 +21,12 @@ from inventura.io.count_sheets import (
 from inventura.io.importer import UnreadableFileError, UnsupportedFileError, import_stock_bytes
 from inventura.io.reports import write_variance_report
 from inventura.services import counting, documents, snapshots, variances
+from inventura.services.dashboard import build_dashboard
 from inventura.web.dependencies import MappingDep, RulesDep, SessionDep, SettingsDep
 from inventura.web.schemas import (
     CountIn,
     CountSheetImportOut,
+    DashboardOut,
     DocumentDetail,
     DocumentOut,
     DocumentVariancesOut,
@@ -280,6 +282,12 @@ def variance_report(snapshot_id: int, session: SessionDep, rules: RulesDep) -> R
             "Content-Disposition": f'attachment; filename="porocilo_razlik_uvoz_{snapshot_id}.xlsx"'
         },
     )
+
+
+@router.get("/snapshots/{snapshot_id}/dashboard", tags=["variances"])
+def dashboard(snapshot_id: int, session: SessionDep) -> DashboardOut:
+    """Progress by rack, the largest variances by value and the total value of variances."""
+    return DashboardOut.of(build_dashboard(session, snapshot_id))
 
 
 def _rejected(detail: str, errors: Sequence[RowError]) -> JSONResponse:

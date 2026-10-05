@@ -100,3 +100,22 @@ def summarize(variances: Iterable[Variance | None]) -> VarianceSummary:
         else:
             shortage += variance.value
     return VarianceSummary(items, counted, with_difference, recount, surplus, shortage)
+
+
+def largest_by_value[T](
+    entries: Iterable[tuple[T, Variance | None]], limit: int
+) -> list[tuple[T, Variance]]:
+    """The variances with the largest value (shortage or surplus), largest first.
+
+    Uncounted items and items without a difference are left out. Ties are broken by
+    the size of the quantity difference, then by input order.
+    """
+    with_difference = [
+        (key, variance)
+        for key, variance in entries
+        if variance is not None and variance.has_difference
+    ]
+    with_difference.sort(
+        key=lambda entry: (abs(entry[1].value), abs(entry[1].quantity)), reverse=True
+    )
+    return with_difference[:limit]
