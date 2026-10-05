@@ -1,4 +1,4 @@
-"""Command line interface: ``inventura generate``, ``import`` and ``sheets``."""
+"""Command line interface: ``inventura generate``, ``import``, ``sheets`` and ``serve``."""
 
 from datetime import date, datetime
 from pathlib import Path
@@ -18,6 +18,7 @@ from inventura.io.count_sheets import (
 )
 from inventura.io.importer import (
     ImportReport,
+    UnreadableFileError,
     UnsupportedFileError,
     import_stock_file,
     write_error_report,
@@ -137,6 +138,18 @@ def sheets(
     typer.echo(f"Printable page: {html_path}")
 
 
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Interface to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+    reload: Annotated[bool, typer.Option(help="Restart on code changes.")] = False,
+) -> None:
+    """Run the web application (API docs at /docs)."""
+    import uvicorn
+
+    uvicorn.run("inventura.web.app:create_app", factory=True, host=host, port=port, reload=reload)
+
+
 def _import(file: Path, mapping: Path, errors_csv: Path | None, show: int) -> ImportReport:
     """Import and print a summary with the first row errors; exit 2 if the file is unreadable."""
     try:
@@ -145,7 +158,7 @@ def _import(file: Path, mapping: Path, errors_csv: Path | None, show: int) -> Im
         _fail(f"Invalid column mapping {mapping}:\n{exc}")
     try:
         report = import_stock_file(file, column_mapping)
-    except (ColumnMappingError, UnsupportedFileError, UnicodeDecodeError) as exc:
+    except (ColumnMappingError, UnsupportedFileError, UnreadableFileError) as exc:
         _fail(f"Cannot import {file}: {exc}")
 
     result = report.result

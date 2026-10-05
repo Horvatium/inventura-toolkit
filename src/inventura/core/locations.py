@@ -42,6 +42,12 @@ class Location:
     def __str__(self) -> str:
         return self.raw or self.canonical
 
+    @classmethod
+    def from_parts(cls, rack: str, level: int, position: int, raw: str = "") -> "Location":
+        """Rebuild a location from stored parts, e.g. ("K2", 3, 11, "K2-03-11")."""
+        prefix, number = rack_sort_key(rack)
+        return cls(prefix, number, level, position, raw=raw)
+
 
 def parse_location(text: str) -> Location:
     """Parse a location; surrounding spaces and letter case are ignored."""

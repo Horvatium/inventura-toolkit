@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from openpyxl import Workbook
@@ -69,7 +69,7 @@ def document_title(document: RackDocument) -> str:
 
 
 def write_count_sheets_xlsx(
-    documents: Sequence[RackDocument], path: Path, options: SheetOptions
+    documents: Sequence[RackDocument], target: Path | BinaryIO, options: SheetOptions
 ) -> None:
     """One worksheet per rack, set up to print on A4 with the header repeated on every page."""
     if not documents:
@@ -80,7 +80,7 @@ def write_count_sheets_xlsx(
     workbook.remove(first)
     for document in documents:
         _write_sheet(workbook.create_sheet(document.rack), document, options)
-    workbook.save(path)
+    workbook.save(target)
 
 
 def render_count_sheets_html(documents: Sequence[RackDocument], options: SheetOptions) -> str:

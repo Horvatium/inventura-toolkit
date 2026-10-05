@@ -15,6 +15,23 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: inventura
+          POSTGRES_PASSWORD: inventura
+          POSTGRES_DB: inventura_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inventura -d inventura_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      INVENTURA_DATABASE_URL: postgresql+psycopg://inventura:inventura@localhost:5432/inventura
+      INVENTURA_TEST_DATABASE_URL: postgresql+psycopg://inventura:inventura@localhost:5432/inventura_test
     steps:
       - uses: actions/checkout@v4
 

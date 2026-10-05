@@ -1,0 +1,166 @@
+"""Create count documents from a snapshot and read them back with progress."""
+
+from dataclasses import dataclass
+
+from sqlalchemy import ColumnElement, Select, exists, func, select
+from sqlalchemy.orm import Session, aliased, joinedload
+
+from inventura.core.documents import RackDocument, split_by_rack
+from inventura.core.locations import Location
+from inventura.core.stock import StockRow
+from inventura.db.models import CountDocument, CountItem, Material, StockItem, StockSnapshot
+from inventura.services import ConflictError, NotFoundError, bulk_insert
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentProgress:
+    document: CountDocument
+    item_count: int  # items in the latest round
+    counted: int  # of those, items with a counted quantity (0 included)
+
+
+def create_documents(session: Session, snapshot_id: int) -> list[CountDocument]:
+    """One document per rack; book quantity and unit price are frozen into the items."""
+    snapshot = session.get(StockSnapshot, snapshot_id, with_for_update=True)
+    if snapshot is None:
+        raise NotFoundError(f"snapshot {snapshot_id} not found")
+    if session.scalar(select(exists().where(CountDocument.snapshot_id == snapshot_id))):
+        raise ConflictError(f"snapshot {snapshot_id} already has count documents")
+
+    stock = session.execute(
+        select(StockItem, Material)
+        .join(Material, StockItem.material_id == Material.id)
+        .where(StockItem.snapshot_id == snapshot_id)
+    )
+    rows: list[StockRow] = []
+    by_key: dict[tuple[str, Location, str | None], StockItem] = {}
+    for item, material in stock:
+        row = StockRow(
+            row_number=item.vrstica,
+            sifra=material.sifra,
+            opis=material.opis,
+            merska_enota=material.merska_enota,
+            lokacija=Location.from_parts(item.regal, item.nivo, item.polozaj, item.lokacija),
+            sarza=item.sarza,
+            kolicina=item.kolicina,
+            cena_na_enoto=item.cena_na_enoto,
+        )
+        rows.append(row)
+        by_key[row.key] = item
+
+    documents = []
+    for rack_document in split_by_rack(rows):
+        document = CountDocument(
+            snapshot_id=snapshot_id,
+            regal=rack_document.rack,
+            zaporedna_st=rack_document.number,
+        )
+        session.add(document)
+        session.flush()
+        session.execute(
+            bulk_insert(CountItem),
+            [
+                {
+                    "document_id": document.id,
+                    "material_id": stock_item.material_id,
+                    "lokacija": stock_item.lokacija,
+                    "nivo": stock_item.nivo,
+                    "polozaj": stock_item.polozaj,
+                    "sarza": stock_item.sarza,
+                    "knjizena_kolicina": stock_item.kolicina,
+                    "cena_na_enoto": stock_item.cena_na_enoto,
+                    "krog": 1,
+                }
+                for stock_item in (by_key[row.key] for row in rack_document.items)
+            ],
+        )
+        documents.append(document)
+    session.flush()
+    return documents
+
+
+def list_documents(session: Session, snapshot_id: int | None = None) -> list[DocumentProgress]:
+    statement = _progress_query()
+    if snapshot_id is not None:
+        statement = statement.where(CountDocument.snapshot_id == snapshot_id)
+    return [DocumentProgress(*row) for row in session.execute(statement)]
+
+
+def get_document(session: Session, document_id: int) -> DocumentProgress:
+    row = session.execute(_progress_query().where(CountDocument.id == document_id)).first()
+    if row is None:
+        raise NotFoundError(f"document {document_id} not found")
+    return DocumentProgress(*row)
+
+
+def document_items(session: Session, document_id: int) -> list[CountItem]:
+    """Items of the latest count round in walking order, with their material loaded."""
+    statement = (
+        select(CountItem)
+        .join(Material, CountItem.material_id == Material.id)
+        .options(joinedload(CountItem.material))
+        .where(CountItem.document_id == document_id, is_latest_round())
+        .order_by(
+            CountItem.nivo,
+            CountItem.polozaj,
+            Material.sifra,
+            CountItem.sarza.asc().nulls_first(),
+        )
+    )
+    return list(session.scalars(statement))
+
+
+def rack_document(session: Session, document_id: int) -> tuple[RackDocument, int]:
+    """The document as core sees it (for count sheets) and the number of documents in its
+    snapshot. Quantities and prices are the frozen ones."""
+    progress = get_document(session, document_id)
+    document = progress.document
+    items = tuple(
+        StockRow(
+            row_number=0,
+            sifra=item.material.sifra,
+            opis=item.material.opis,
+            merska_enota=item.material.merska_enota,
+            lokacija=Location.from_parts(document.regal, item.nivo, item.polozaj, item.lokacija),
+            sarza=item.sarza,
+            kolicina=item.knjizena_kolicina,
+            cena_na_enoto=item.cena_na_enoto,
+        )
+        for item in document_items(session, document_id)
+    )
+    total = session.scalar(
+        select(func.count())
+        .select_from(CountDocument)
+        .where(CountDocument.snapshot_id == document.snapshot_id)
+    )
+    return RackDocument(document.zaporedna_st, document.regal, items), total or 0
+
+
+def is_latest_round() -> ColumnElement[bool]:
+    """True for a count item with no later round at the same position (material, location,
+    batch). Correlated with CountItem in the enclosing query; uses the unique index."""
+    later = aliased(CountItem)
+    return ~exists().where(
+        later.document_id == CountItem.document_id,
+        later.material_id == CountItem.material_id,
+        later.nivo == CountItem.nivo,
+        later.polozaj == CountItem.polozaj,
+        later.sarza.is_not_distinct_from(CountItem.sarza),
+        later.krog > CountItem.krog,
+    )
+
+
+def _progress_query() -> Select[CountDocument, int, int]:
+    return (
+        select(
+            CountDocument,
+            func.count(CountItem.id),
+            func.count(CountItem.presteta_kolicina),
+        )
+        .outerjoin(
+            CountItem,
+            (CountItem.document_id == CountDocument.id) & is_latest_round(),
+        )
+        .group_by(CountDocument.id)
+        .order_by(CountDocument.snapshot_id, CountDocument.zaporedna_st)
+    )
