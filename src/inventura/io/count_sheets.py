@@ -39,6 +39,9 @@ class _Column:
     width: float
 
 
+LOCATION_COLUMN_TITLE = "Lokacija"
+CODE_COLUMN_TITLE = "Šifra"
+BATCH_COLUMN_TITLE = "Šarža"
 COUNT_COLUMN_TITLE = "Prešteta količina"
 HEADER_ROW = 5
 
@@ -52,10 +55,10 @@ _COUNT_FILL = PatternFill("solid", fgColor="FFF7D6")
 def columns(show_book_quantity: bool) -> list[_Column]:
     result = [
         _Column("Zap. št.", 7),
-        _Column("Lokacija", 11),
-        _Column("Šifra", 11),
+        _Column(LOCATION_COLUMN_TITLE, 11),
+        _Column(CODE_COLUMN_TITLE, 11),
         _Column("Opis", 44),
-        _Column("Šarža", 11),
+        _Column(BATCH_COLUMN_TITLE, 11),
         _Column("ME", 5),
     ]
     if show_book_quantity:

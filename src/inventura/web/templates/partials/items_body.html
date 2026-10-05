@@ -1,0 +1,7 @@
+<tbody id="items"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% for item in items %}
+  {% include "partials/item_row.html" %}
+  {% else %}
+  <tr><td colspan="6" class="muted">Dokument nima postavk.</td></tr>
+  {% endfor %}
+</tbody>

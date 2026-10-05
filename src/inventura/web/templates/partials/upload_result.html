@@ -1,0 +1,21 @@
+<div id="upload-result">
+  {% if summary %}
+  <div class="notice ok">
+    <p>Popisni list je uvožen.</p>
+    <p>Vpisane količine: {{ summary.updated }}{% if summary.overwritten %} (od tega prepisanih že vnesenih: {{ summary.overwritten }}){% endif %}</p>
+    {% if summary.found %}<p>Najdeno blago: {{ summary.found }}</p>{% endif %}
+    {% if summary.without_quantity %}<p class="muted">Vrstice brez količine (nespremenjene): {{ summary.without_quantity }}</p>{% endif %}
+  </div>
+  {% elif message %}
+  <div class="notice error">
+    <p>{{ message }}</p>
+    {% if errors %}
+    <p class="muted">Vrstic z napakami: {{ error_rows }}</p>
+    {% include "partials/row_errors.html" %}
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% if oob %}
+{% include "partials/refresh.html" %}
+{% endif %}

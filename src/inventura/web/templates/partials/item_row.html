@@ -1,0 +1,33 @@
+{% set row_error = error | default(none) if row_oob | default(false) else none %}
+{% set counted = item.presteta_kolicina is not none %}
+{% set unit = item.material.merska_enota %}
+<tr id="item-{{ item.id }}" class="{{ 'counted' if counted }}{{ ' found' if item.najdeno }}{{ ' has-error' if row_error }}">
+  <td class="loc">{{ item.lokacija }}</td>
+  <td class="material">
+    <span class="code">{{ item.material.sifra }}</span>
+    <span class="desc">{{ item.material.opis }}</span>
+    {% if item.sarza %}<span class="batch-inline">Šarža {{ item.sarza }}</span>{% endif %}
+    {% if item.najdeno %}<span class="tag">najdeno</span>{% endif %}
+  </td>
+  <td class="code batch">{{ item.sarza or "" }}</td>
+  <td>{{ unit }}</td>
+  <td class="qty-cell">
+    <input class="qty" name="kolicina" inputmode="decimal" autocomplete="off"
+           aria-label="Prešteta količina {{ item.material.sifra }} na {{ item.lokacija }}"
+           value="{{ typed if row_error else item.presteta_kolicina | input_quantity(unit) }}"
+           hx-patch="/items/{{ item.id }}" hx-trigger="change" hx-target="closest tr"
+           hx-swap="outerHTML" hx-include="#stevec"{% if closed %} disabled{% endif %}>
+    {% if row_error %}<span class="error-text">{{ row_error }}</span>{% endif %}
+  </td>
+  <td class="state">
+    {% if item.najdeno and not closed %}
+    <button type="button" class="link danger" title="Odstrani najdeno postavko"
+            hx-delete="/items/{{ item.id }}" hx-confirm="Odstranim najdeno postavko?"
+            hx-target="closest tr" hx-swap="outerHTML">Odstrani</button>
+    {% elif counted %}<span class="ok" title="Shranjeno">✓</span>{% endif %}
+  </td>
+</tr>
+{% if row_oob | default(false) %}
+{% set oob = true %}
+{% include "partials/doc_progress.html" %}
+{% endif %}

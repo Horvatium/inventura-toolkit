@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Regal {{ document.regal }} · Inventura{% endblock %}
+{% block topbar %}
+<span class="crumb">Regal {{ document.regal }}</span>
+<label class="counter">Števec
+  <input id="stevec" name="stevec" maxlength="100" autocomplete="name" placeholder="ime in priimek">
+</label>
+{% endblock %}
+{% block content %}
+<section class="card doc-head">
+  <div>
+    <h1>Regal {{ document.regal }}</h1>
+    <p class="muted">Dokument {{ document.zaporedna_st }} · uvoz {{ document.snapshot_id }}</p>
+  </div>
+  {% set oob = false %}
+  {% include "partials/doc_progress.html" %}
+  <label class="toggle"><input type="checkbox" id="only-open"> Samo nepreštete</label>
+</section>
+
+{% if closed %}
+<p class="notice">Dokument je zaključen, količin ni več mogoče spreminjati.</p>
+{% endif %}
+
+<div class="table-wrap">
+<table class="count">
+  <thead>
+    <tr><th>Lokacija</th><th>Material</th><th class="batch">Šarža</th><th>ME</th><th>Prešteto</th><th></th></tr>
+  </thead>
+  {% include "partials/items_body.html" %}
+</table>
+</div>
+
+{% if not closed %}
+<section class="card">
+  <h2>Najdeno blago</h2>
+  <p class="muted">Material, ki ga na tej lokaciji ni na seznamu. Šifra mora biti v šifrantu.</p>
+  {% set form = none %}{% set error = none %}{% set saved = none %}
+  {% include "partials/found_form.html" %}
+</section>
+
+<section class="card">
+  <h2>Uvoz izpolnjenega popisnega lista</h2>
+  <p class="muted">
+    Excel, prenesen s tega dokumenta in izpolnjen. Prazna celica ne spremeni ničesar,
+    vpisana količina nadomesti že vneseno. Ob kakršni koli napaki se ne shrani nič.
+  </p>
+  <form hx-post="/documents/{{ document.id }}/upload" hx-encoding="multipart/form-data"
+        hx-target="#upload-result" hx-swap="outerHTML" hx-include="#stevec" class="row-form">
+    <input type="file" name="file" accept=".xlsx" required>
+    <button type="submit">Uvozi</button>
+  </form>
+  <div id="upload-result"></div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const counter = document.getElementById("stevec");
+  try { counter.value = localStorage.getItem("stevec") || ""; } catch (e) {}
+  counter.addEventListener("change", () => {
+    try { localStorage.setItem("stevec", counter.value.trim()); } catch (e) {}
+  });
+
+  const onlyOpen = document.getElementById("only-open");
+  onlyOpen.addEventListener("change", () => {
+    document.body.classList.toggle("only-open", onlyOpen.checked);
+  });
+
+  // Enter saves the quantity and moves to the next one, like walking along the rack.
+  document.addEventListener("keydown", (event) => {
+    const input = event.target;
+    if (event.key !== "Enter" || !input.classList || !input.classList.contains("qty")) return;
+    event.preventDefault();
+    const inputs = [...document.querySelectorAll("input.qty:not([disabled])")]
+      .filter((el) => el.offsetParent !== null);
+    const next = inputs[inputs.indexOf(input) + 1];
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    if (next) { next.focus(); next.select(); } else { input.blur(); }
+  });
+})();
+</script>
+{% endblock %}

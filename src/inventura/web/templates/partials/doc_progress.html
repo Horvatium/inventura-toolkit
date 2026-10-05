@@ -1,0 +1,5 @@
+{% set p = progress %}
+<div id="doc-progress" class="doc-progress"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <span class="badge {{ p.document.status.value }}">{{ status_label(p.document.status) }}</span>
+  {% include "partials/progress_bar.html" %}
+</div>

@@ -7,6 +7,7 @@ in a transaction that is rolled back, so tests do not see each other's data.
 
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic import command
@@ -88,3 +89,23 @@ def client(session: Session, test_settings: Settings) -> Iterator[TestClient]:
     app.dependency_overrides[get_session] = lambda: session
     with TestClient(app) as test_client:
         yield test_client
+
+
+STOCK_HEADER = "Šifra materiala;Opis materiala;ME;Lokacija;Šarža;Zaloga;Cena na enoto\n"
+STOCK_ROWS = (
+    "0000001;Vijak M8;kos;B6-1-1;;120;0,15\n"
+    "0000002;Kabel NYM-J;m;B6-1-2;;12,5;0,80\n"
+    "0000003;Olje HLP 46;l;B6-2-1;L01;20;3,50\n"
+    "0000009;Filter zraka;kos;K1-01-01;;2;40,00\n"
+)
+
+
+@pytest.fixture
+def document(client: TestClient) -> dict[str, Any]:
+    """The B6 document of a small import (materials 1-3 on B6, material 9 on K1)."""
+    data = (STOCK_HEADER + STOCK_ROWS).encode()
+    snapshot = client.post("/api/snapshots", files={"file": ("stock.csv", data)}).json()
+    created = client.post(f"/api/snapshots/{snapshot['id']}/documents").json()
+    b6 = next(d for d in created if d["regal"] == "B6")
+    detail: dict[str, Any] = client.get(f"/api/documents/{b6['id']}").json()
+    return detail

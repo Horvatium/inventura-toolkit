@@ -1,0 +1,5 @@
+{# Out-of-band updates of the item list and the progress after a change to the document.
+   The tbody is wrapped in <template>: outside a table the HTML parser would drop it. #}
+{% set oob = true %}
+<template>{% include "partials/items_body.html" %}</template>
+{% include "partials/doc_progress.html" %}

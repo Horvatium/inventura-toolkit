@@ -1,15 +1,18 @@
 """JSON API: import stock, create count documents, read them and record counts."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from io import BytesIO
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy import select
 
 from inventura.core.documents import RackDocument
+from inventura.core.stock import RowError
 from inventura.io.column_mapping import ColumnMappingError
+from inventura.io.count_sheet_reader import CountSheetError
 from inventura.io.count_sheets import (
     SheetOptions,
     render_count_sheets_html,
@@ -20,8 +23,10 @@ from inventura.services import counting, documents, snapshots
 from inventura.web.dependencies import MappingDep, SessionDep, SettingsDep
 from inventura.web.schemas import (
     CountIn,
+    CountSheetImportOut,
     DocumentDetail,
     DocumentOut,
+    FoundIn,
     ImportRejected,
     ItemOut,
     RowErrorOut,
@@ -64,14 +69,7 @@ def import_snapshot(
 
     result = report.result
     if not result.is_valid:
-        rejected = ImportRejected(
-            detail="the file has rows with errors; nothing was imported",
-            vrstic_z_napakami=result.error_row_count,
-            napake=[RowErrorOut.of(error) for error in result.errors],
-        )
-        return JSONResponse(
-            rejected.model_dump(mode="json"), status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
-        )
+        return _rejected("the file has rows with errors; nothing was imported", result.errors)
     if not result.rows:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "the file has no stock rows")
 
@@ -165,6 +163,89 @@ def record_count(item_id: int, body: CountIn, session: SessionDep) -> ItemOut:
     )
     session.commit()
     return ItemOut.of(item)
+
+
+@router.post(
+    "/documents/{document_id}/items",
+    status_code=status.HTTP_201_CREATED,
+    tags=["items"],
+    responses={
+        409: {"description": "Closed document, or the item is already on the document"},
+        422: {"description": "Unknown material, location outside the rack, invalid quantity"},
+    },
+)
+def add_found_item(document_id: int, body: FoundIn, session: SessionDep) -> ItemOut:
+    """Add found goods: material on the shelf that the book does not have here."""
+    item = counting.add_found_item(
+        session,
+        document_id,
+        location=body.lokacija,
+        sifra=body.sifra,
+        sarza=body.sarza,
+        quantity=body.presteta_kolicina,
+        counter=body.stevec,
+        now=datetime.now(UTC),
+    )
+    session.commit()
+    return ItemOut.of(item)
+
+
+@router.delete(
+    "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["items"],
+    responses={409: {"description": "Not found goods, or a closed document"}},
+)
+def delete_found_item(item_id: int, session: SessionDep) -> None:
+    """Remove found goods added by mistake. Book items cannot be removed."""
+    counting.delete_found_item(session, item_id)
+    session.commit()
+
+
+@router.post(
+    "/documents/{document_id}/count-sheet",
+    response_model=CountSheetImportOut,
+    tags=["documents"],
+    responses={
+        400: {"description": "Not a readable count sheet for this rack"},
+        409: {"description": "Closed document"},
+        422: {"model": ImportRejected, "description": "Rows with errors; nothing was stored"},
+    },
+)
+def import_count_sheet(
+    document_id: int,
+    file: UploadFile,
+    session: SessionDep,
+    settings: SettingsDep,
+    mapping: MappingDep,
+    stevec: Annotated[str | None, Form(max_length=100)] = None,
+) -> CountSheetImportOut | JSONResponse:
+    """Import a filled Excel count sheet. Stored only if every row is valid; a quantity
+    from the sheet replaces one entered earlier, an empty cell changes nothing."""
+    data = file.file.read(settings.max_upload_bytes + 1)
+    if len(data) > settings.max_upload_bytes:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file is too large")
+    try:
+        summary = counting.import_count_sheet(
+            session, document_id, data, stevec, datetime.now(UTC), mapping.numbers.to_format()
+        )
+    except CountSheetError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except counting.CountSheetRejected as exc:
+        return _rejected(str(exc), exc.errors)
+    session.commit()
+    return CountSheetImportOut.of(summary)
+
+
+def _rejected(detail: str, errors: Sequence[RowError]) -> JSONResponse:
+    rejected = ImportRejected(
+        detail=detail,
+        vrstic_z_napakami=len({error.row_number for error in errors}),
+        napake=[RowErrorOut.of(error) for error in errors],
+    )
+    return JSONResponse(
+        rejected.model_dump(mode="json"), status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
+    )
 
 
 def _sheet(

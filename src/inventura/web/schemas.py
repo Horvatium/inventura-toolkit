@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from inventura.core.counting import DocumentStatus
 from inventura.core.stock import RowError
 from inventura.db.models import CountItem
+from inventura.services.counting import SheetImportSummary
 from inventura.services.documents import DocumentProgress
 from inventura.services.snapshots import SnapshotSummary
 
@@ -100,6 +101,7 @@ class ItemOut(BaseModel):
     stevec: str | None
     presteto_ob: datetime | None
     krog: int
+    najdeno: bool
 
     @classmethod
     def of(cls, item: CountItem) -> "ItemOut":
@@ -118,6 +120,7 @@ class ItemOut(BaseModel):
             stevec=item.stevec,
             presteto_ob=item.presteto_ob,
             krog=item.krog,
+            najdeno=item.najdeno,
         )
 
 
@@ -132,3 +135,31 @@ class CountIn(BaseModel):
 
     presteta_kolicina: Decimal | None
     stevec: str | None = Field(default=None, max_length=100)
+
+
+class FoundIn(BaseModel):
+    """Goods found on the shelf that are not on the document."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lokacija: str = Field(max_length=40)
+    sifra: str = Field(max_length=40)
+    sarza: str | None = Field(default=None, max_length=40)
+    presteta_kolicina: Decimal
+    stevec: str | None = Field(default=None, max_length=100)
+
+
+class CountSheetImportOut(BaseModel):
+    posodobljeno: int
+    prepisano: int
+    najdeno: int
+    brez_kolicine: int
+
+    @classmethod
+    def of(cls, summary: SheetImportSummary) -> "CountSheetImportOut":
+        return cls(
+            posodobljeno=summary.updated,
+            prepisano=summary.overwritten,
+            najdeno=summary.found,
+            brez_kolicine=summary.without_quantity,
+        )

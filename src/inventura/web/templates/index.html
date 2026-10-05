@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Uvoz zalog</h1>
+  <form hx-post="/snapshots" hx-encoding="multipart/form-data" hx-target="#import-result"
+        class="row-form">
+    <input type="file" name="file" accept=".csv,.xlsx" required>
+    <button type="submit">Uvozi</button>
+  </form>
+  <div id="import-result"></div>
+</section>
+
+{% for summary, docs in imports %}
+<section class="card">
+  <h2>Uvoz {{ summary.snapshot.id }} · {{ summary.snapshot.izvorna_datoteka }}</h2>
+  <p class="muted">
+    {{ summary.snapshot.uvozeno_ob | date }} · {{ summary.item_count }} postavk
+  </p>
+  {% if not docs %}
+  <form method="post" action="/snapshots/{{ summary.snapshot.id }}/documents">
+    <button type="submit">Začni inventuro (en dokument na regal)</button>
+  </form>
+  {% else %}
+  <div class="table-wrap">
+  <table class="documents">
+    <thead>
+      <tr><th>Št.</th><th>Regal</th><th>Status</th><th>Prešteto</th><th>Popisni list</th></tr>
+    </thead>
+    <tbody>
+      {% for p in docs %}
+      <tr>
+        <td class="num">{{ p.document.zaporedna_st }}</td>
+        <td><a class="rack" href="/documents/{{ p.document.id }}">{{ p.document.regal }}</a></td>
+        <td><span class="badge {{ p.document.status.value }}">{{ status_label(p.document.status) }}</span></td>
+        <td>
+          {% include "partials/progress_bar.html" %}
+        </td>
+        <td class="links">
+          <a href="/api/documents/{{ p.document.id }}/count-sheet.html" target="_blank">Natisni</a>
+          <a href="/api/documents/{{ p.document.id }}/count-sheet.xlsx">Excel</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<p class="muted">Ni še uvozov. Uvozi izvoz zalog (CSV ali XLSX).</p>
+{% endfor %}
+{% endblock %}

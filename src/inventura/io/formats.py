@@ -26,3 +26,10 @@ def format_decimal(value: Decimal, places: int) -> str:
 
 def format_date(value: date) -> str:
     return f"{value.day}. {value.month}. {value.year}"
+
+
+def format_input_quantity(value: Decimal | None, unit: str) -> str:
+    """Value for an input field: decimal comma, no thousands separator (1234 or 12,5)."""
+    if value is None:
+        return ""
+    return f"{value:.{quantity_decimals(unit)}f}".replace(".", ",")

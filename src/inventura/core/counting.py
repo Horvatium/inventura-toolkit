@@ -3,7 +3,8 @@
 from decimal import Decimal
 from enum import StrEnum
 
-from inventura.core.numbers import fits_numeric
+from inventura.core.locations import Location, LocationError, parse_location, rack_sort_key
+from inventura.core.numbers import NumberFormat, NumberParseError, fits_numeric, parse_decimal
 from inventura.core.stock import QUANTITY_PRECISION, QUANTITY_SCALE
 from inventura.core.units import is_valid_quantity, quantity_rule
 
@@ -28,11 +29,13 @@ class DocumentClosedError(CountError):
 def validate_counted_quantity(quantity: Decimal | None, unit: str) -> Decimal | None:
     """Check a counted quantity; None means "not counted yet" and is always allowed.
 
-    Zero is a real count (counted, nothing there). The same decimal rule applies
-    as for book quantities: whole numbers, one decimal for m and l.
+    Zero is a real count (counted, nothing there).
     """
-    if quantity is None:
-        return None
+    return None if quantity is None else check_quantity(quantity, unit)
+
+
+def check_quantity(quantity: Decimal, unit: str) -> Decimal:
+    """The same rule as for book quantities: whole numbers, one decimal for m and l."""
     if not quantity.is_finite():
         raise CountError("quantity must be a number")
     if quantity < 0:
@@ -51,3 +54,35 @@ def status_after_count(status: DocumentStatus) -> DocumentStatus:
     if status is DocumentStatus.ODPRT:
         return DocumentStatus.V_STETJU
     return status
+
+
+_TYPED = NumberFormat(decimal_separator=".", thousands_separator=None)
+
+
+def parse_counted_input(text: str) -> Decimal | None:
+    """A quantity typed on the tablet: empty means "not counted"; comma or dot as decimals."""
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return parse_decimal(text.replace(",", "."), _TYPED)
+    except NumberParseError as exc:
+        raise CountError("quantity must be a number") from exc
+
+
+def parse_found_location(text: str, rack: str) -> Location:
+    """Location of found goods; it must be in the rack of the document being counted."""
+    try:
+        location = parse_location(text)
+    except LocationError as exc:
+        raise CountError(str(exc)) from exc
+    if location.rack_key != rack_sort_key(rack):
+        raise CountError(f"location {location} is not in rack {rack}")
+    return location
+
+
+def validate_found_quantity(quantity: Decimal | None, unit: str) -> Decimal:
+    """Found goods (not in the book) are recorded only with a quantity above zero."""
+    if quantity is None or quantity == 0:
+        raise CountError("found goods need a quantity greater than 0")
+    return check_quantity(quantity, unit)

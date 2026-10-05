@@ -60,7 +60,7 @@ class RowError:
     """A problem in one row of the source file; row_number is the row as shown in Excel."""
 
     row_number: int
-    field: StockField | None
+    field: str | None  # a StockField for stock exports, a column name for count sheets
     value: str
     message: str
 
@@ -99,7 +99,7 @@ def validate_stock_rows(
     units: dict[str, tuple[str, int]] = {}
 
     for row_number, record in records:
-        if all(_is_blank(value) for value in record.values()):
+        if all(is_blank(value) for value in record.values()):
             skipped += 1
             continue
         row, row_errors = _parse_row(row_number, record, number_format)
@@ -121,10 +121,10 @@ def _parse_row(
     errors: list[RowError] = []
 
     def error(field: StockField, message: str) -> None:
-        errors.append(RowError(row_number, field, _display(record.get(field)), message))
+        errors.append(RowError(row_number, field, display_value(record.get(field)), message))
 
     def text(field: StockField, max_length: int) -> str | None:
-        value = _text(record.get(field))
+        value = cell_text(record.get(field))
         if value is None:
             if field in REQUIRED_FIELDS:
                 error(field, "value is required")
@@ -136,7 +136,7 @@ def _parse_row(
 
     def number(field: StockField) -> Decimal | None:
         raw = record.get(field)
-        if _is_blank(raw):
+        if is_blank(raw):
             error(field, "value is required")
             return None
         try:
@@ -227,7 +227,8 @@ def _check_consistency(
     return errors
 
 
-def _is_blank(value: object) -> bool:
+def is_blank(value: object) -> bool:
+    """None, NaN or text with only whitespace."""
     if value is None:
         return True
     if isinstance(value, float):
@@ -235,8 +236,9 @@ def _is_blank(value: object) -> bool:
     return isinstance(value, str) and not value.strip()
 
 
-def _text(value: object) -> str | None:
-    if _is_blank(value):
+def cell_text(value: object) -> str | None:
+    """Trimmed text of a cell, or None if blank."""
+    if is_blank(value):
         return None
     if isinstance(value, float) and value.is_integer():
         # A code typed into a numeric XLSX cell, e.g. 1234 read back as 1234.0.
@@ -244,5 +246,5 @@ def _text(value: object) -> str | None:
     return str(value).strip()
 
 
-def _display(value: object) -> str:
-    return "" if _is_blank(value) else str(value)
+def display_value(value: object) -> str:
+    return "" if is_blank(value) else str(value)

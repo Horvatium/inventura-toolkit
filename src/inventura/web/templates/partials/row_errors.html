@@ -1,0 +1,15 @@
+<div class="table-wrap">
+<table class="errors">
+  <thead><tr><th>Vrstica</th><th>Polje</th><th>Vrednost</th><th>Napaka</th></tr></thead>
+  <tbody>
+    {% for error in errors %}
+    <tr>
+      <td class="num">{{ error.row_number }}</td>
+      <td>{{ error.field or "" }}</td>
+      <td>{{ error.value }}</td>
+      <td>{{ error.message }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>

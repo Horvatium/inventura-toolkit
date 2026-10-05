@@ -1,0 +1,23 @@
+<form id="found-form" class="found-form" hx-post="/documents/{{ document.id }}/found"
+      hx-target="this" hx-swap="outerHTML" hx-include="#stevec">
+  <label>Lokacija
+    <input name="lokacija" required maxlength="40" autocomplete="off"
+           placeholder="{{ document.regal }}-1-1" value="{{ form.lokacija if form else '' }}">
+  </label>
+  <label>Šifra
+    <input name="sifra" required maxlength="40" autocomplete="off" value="{{ form.sifra if form else '' }}">
+  </label>
+  <label>Šarža
+    <input name="sarza" maxlength="40" autocomplete="off" value="{{ form.sarza if form else '' }}">
+  </label>
+  <label>Količina
+    <input name="kolicina" required inputmode="decimal" autocomplete="off"
+           value="{{ form.kolicina if form else '' }}">
+  </label>
+  <button type="submit">Dodaj</button>
+  {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+  {% if saved | default(none) %}<p class="notice ok">{{ saved }}</p>{% endif %}
+</form>
+{% if oob | default(false) %}
+{% include "partials/refresh.html" %}
+{% endif %}

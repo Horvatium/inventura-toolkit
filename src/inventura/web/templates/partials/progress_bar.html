@@ -1,0 +1,6 @@
+{% set total = p.item_count %}
+{% set done = p.counted %}
+<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ done }}">
+  <div class="bar"><span style="width: {{ (100 * done / total) | round(1) if total else 0 }}%"></span></div>
+  <span class="label">{{ done }} / {{ total }}</span>
+</div>

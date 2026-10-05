@@ -110,6 +110,15 @@ def document_items(session: Session, document_id: int) -> list[CountItem]:
     return list(session.scalars(statement))
 
 
+def get_item(session: Session, item_id: int) -> CountItem:
+    item = session.scalars(
+        select(CountItem).options(joinedload(CountItem.material)).where(CountItem.id == item_id)
+    ).one_or_none()
+    if item is None:
+        raise NotFoundError(f"count item {item_id} not found")
+    return item
+
+
 def rack_document(session: Session, document_id: int) -> tuple[RackDocument, int]:
     """The document as core sees it (for count sheets) and the number of documents in its
     snapshot. Quantities and prices are the frozen ones."""

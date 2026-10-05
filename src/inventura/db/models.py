@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -162,6 +163,8 @@ class CountItem(Base):
     stevec: Mapped[str | None] = mapped_column(String(100))
     presteto_ob: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     krog: Mapped[int] = mapped_column(default=1)
+    # Found goods: added during the count, not in the book (knjizena_kolicina is 0).
+    najdeno: Mapped[bool] = mapped_column(default=False, server_default=false())
 
     document: Mapped[CountDocument] = relationship(back_populates="items")
     material: Mapped[Material] = relationship()
@@ -182,5 +185,6 @@ class CountItem(Base):
         CheckConstraint("presteta_kolicina >= 0", name="presteta_not_negative"),
         CheckConstraint("cena_na_enoto >= 0", name="cena_not_negative"),
         CheckConstraint("krog >= 1", name="krog_positive"),
+        CheckConstraint("NOT najdeno OR knjizena_kolicina = 0", name="najdeno_not_in_book"),
         Index("ix_count_items_document_order", "document_id", "nivo", "polozaj"),
     )

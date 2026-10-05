@@ -1,0 +1,7 @@
+<div class="notice error">
+  <p>{{ message }}</p>
+  {% if errors %}
+  <p class="muted">Vrstic z napakami: {{ error_rows }}{% if errors | length < error_rows %} (prikazanih je prvih {{ errors | length }} napak){% endif %}</p>
+  {% include "partials/row_errors.html" %}
+  {% endif %}
+</div>

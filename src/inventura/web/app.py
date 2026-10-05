@@ -5,13 +5,15 @@ Run with ``uv run inventura serve`` (or ``uvicorn --factory inventura.web.app:cr
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from inventura.core.counting import CountError, DocumentClosedError
 from inventura.db.session import make_engine, make_session_factory
 from inventura.io.column_mapping import load_column_mapping
 from inventura.services import ConflictError, NotFoundError
 from inventura.settings import Settings, get_settings
-from inventura.web.routes import api
+from inventura.web.routes import api, pages
+from inventura.web.templating import STATIC_DIR
 
 # Handlers are looked up along the exception's MRO, so DocumentClosedError (a CountError)
 # gets 409 and other CountErrors 422.
@@ -34,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = make_session_factory(make_engine(settings.database_url))
     app.state.column_mapping = load_column_mapping(settings.column_mapping)
     app.include_router(api.router)
+    app.include_router(pages.router)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     for error_type in ERROR_STATUS:
         app.add_exception_handler(error_type, _domain_error)
     return app
