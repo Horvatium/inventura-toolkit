@@ -19,6 +19,11 @@
 
 {% if closed %}
 <p class="notice">Dokument je zaključen, količin ni več mogoče spreminjati.</p>
+{% elif recount_round %}
+<p class="notice recount">
+  <strong>Ponovno štetje (krog {{ recount_round }}).</strong>
+  Preštej samo spodnje postavke; prejšnje štetje ni prikazano.
+</p>
 {% endif %}
 
 <div class="table-wrap">

@@ -17,6 +17,19 @@ class DocumentStatus(StrEnum):
     PONOVNO_STETJE = "ponovno_stetje"  # variances above the threshold sent back for recount
     ZAKLJUCEN = "zakljucen"  # closed, no more changes
 
+    @property
+    def label(self) -> str:
+        """Name shown to users."""
+        return _STATUS_LABELS[self]
+
+
+_STATUS_LABELS = {
+    DocumentStatus.ODPRT: "Odprt",
+    DocumentStatus.V_STETJU: "V štetju",
+    DocumentStatus.PONOVNO_STETJE: "Ponovno štetje",
+    DocumentStatus.ZAKLJUCEN: "Zaključen",
+}
+
 
 class CountError(ValueError):
     """A counted quantity or a count action that the rules do not allow."""
@@ -86,3 +99,13 @@ def validate_found_quantity(quantity: Decimal | None, unit: str) -> Decimal:
     if quantity is None or quantity == 0:
         raise CountError("najdeno blago mora imeti količino, večjo od 0")
     return check_quantity(quantity, unit)
+
+
+class ItemLockedError(CountError):
+    """The item is not part of the count round in progress."""
+
+
+def check_item_in_round(status: DocumentStatus, item_round: int, current_round: int) -> None:
+    """During a recount only the items sent to recount (the current round) may change."""
+    if status is DocumentStatus.PONOVNO_STETJE and item_round < current_round:
+        raise ItemLockedError("v ponovnem štetju se štejejo samo postavke za ponovno štetje")

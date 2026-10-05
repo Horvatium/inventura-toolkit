@@ -118,3 +118,24 @@ def test_same_item_twice_is_an_error() -> None:
     assert [(e.row_number, e.message) for e in result.errors] == [
         (7, "ista postavka kot v vrstici 6")
     ]
+
+
+def test_locked_position_cannot_be_counted_during_a_recount() -> None:
+    locked = [
+        CountPosition(1, "0000001", parse_location("B6-1-1"), None, "kos", Decimal(5), locked=True),
+        CountPosition(2, "0000002", parse_location("B6-1-2"), None, "m", None),
+    ]
+    result = match_count_sheet(
+        [
+            row(6, "B6-1-1", "0000001", 4),
+            row(7, "B6-1-2", "0000002", 3),
+            row(8, "B6-1-1", "0000001", None),
+        ],
+        "B6",
+        locked,
+        UNITS,
+        FMT,
+    )
+    assert [(e.row_number, e.message) for e in result.errors] == [
+        (6, "postavka ni v ponovnem štetju")
+    ]

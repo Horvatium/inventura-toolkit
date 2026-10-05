@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     database_url: str = LOCAL_DATABASE_URL
     test_database_url: str = LOCAL_TEST_DATABASE_URL
     column_mapping: Path = Path("config/column_mapping.yaml")
+    variance_rules: Path = Path("config/variance_rules.yaml")
     max_upload_bytes: int = 20 * 1024 * 1024
 
 

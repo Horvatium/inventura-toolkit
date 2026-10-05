@@ -1,7 +1,7 @@
 """JSON API: import stock, create count documents, read them and record counts."""
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from io import BytesIO
 from typing import Annotated
 
@@ -19,16 +19,19 @@ from inventura.io.count_sheets import (
     write_count_sheets_xlsx,
 )
 from inventura.io.importer import UnreadableFileError, UnsupportedFileError, import_stock_bytes
-from inventura.services import counting, documents, snapshots
-from inventura.web.dependencies import MappingDep, SessionDep, SettingsDep
+from inventura.io.reports import write_variance_report
+from inventura.services import counting, documents, snapshots, variances
+from inventura.web.dependencies import MappingDep, RulesDep, SessionDep, SettingsDep
 from inventura.web.schemas import (
     CountIn,
     CountSheetImportOut,
     DocumentDetail,
     DocumentOut,
+    DocumentVariancesOut,
     FoundIn,
     ImportRejected,
     ItemOut,
+    RoundResultOut,
     RowErrorOut,
     SnapshotOut,
 )
@@ -237,6 +240,52 @@ def import_count_sheet(
     return CountSheetImportOut.of(summary)
 
 
+@router.get("/documents/{document_id}/variances", tags=["variances"])
+def document_variances(
+    document_id: int, session: SessionDep, rules: RulesDep
+) -> DocumentVariancesOut:
+    """Variances of the latest count round. Not stored: always computed from the counts."""
+    return DocumentVariancesOut.of_variances(
+        variances.document_variances(session, document_id, rules)
+    )
+
+
+@router.post(
+    "/documents/{document_id}/finish-round",
+    tags=["variances"],
+    responses={409: {"description": "Items not counted yet, or the document is closed"}},
+)
+def finish_round(document_id: int, session: SessionDep, rules: RulesDep) -> RoundResultOut:
+    """Finish the count round: items over the recount threshold get a new round,
+    otherwise (or after the last allowed round) the document is closed."""
+    result = variances.finish_round(session, document_id, rules, datetime.now(UTC))
+    session.commit()
+    return RoundResultOut.of(result)
+
+
+@router.get(
+    "/snapshots/{snapshot_id}/report.xlsx",
+    tags=["variances"],
+    response_class=Response,
+    responses={
+        200: {"content": {XLSX_MEDIA_TYPE: {}}},
+        409: {"description": "The snapshot has no count documents yet"},
+    },
+)
+def variance_report(snapshot_id: int, session: SessionDep, rules: RulesDep) -> Response:
+    """Excel report: summary by rack, variances with conditional formatting, uncounted items."""
+    racks, header = variances.snapshot_report(session, snapshot_id, rules, date.today())
+    buffer = BytesIO()
+    write_variance_report(racks, header, buffer)
+    return Response(
+        buffer.getvalue(),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="porocilo_razlik_uvoz_{snapshot_id}.xlsx"'
+        },
+    )
+
+
 def _rejected(detail: str, errors: Sequence[RowError]) -> JSONResponse:
     rejected = ImportRejected(
         detail=detail,
@@ -251,11 +300,12 @@ def _rejected(detail: str, errors: Sequence[RowError]) -> JSONResponse:
 def _sheet(
     session: SessionDep, document_id: int, book_quantities: bool
 ) -> tuple[RackDocument, SheetOptions]:
-    rack, total = documents.rack_document(session, document_id)
+    rack, total, count_round = documents.rack_document(session, document_id)
     created = documents.get_document(session, document_id).document.ustvarjen_ob
     options = SheetOptions(
         created=created.astimezone().date(),
         total_documents=total,
         show_book_quantity=book_quantities,
+        count_round=count_round,
     )
     return rack, options

@@ -45,6 +45,7 @@ def test_settings() -> Settings:
         database_url=settings.test_database_url,
         test_database_url=settings.test_database_url,
         column_mapping=REPO_ROOT / "config" / "column_mapping.yaml",
+        variance_rules=REPO_ROOT / "config" / "variance_rules.yaml",
         max_upload_bytes=settings.max_upload_bytes,
     )
 

@@ -14,8 +14,10 @@ from inventura.core.counting import CountError, DocumentStatus, parse_counted_in
 from inventura.io.column_mapping import ColumnMappingError
 from inventura.io.count_sheet_reader import CountSheetError
 from inventura.io.importer import UnreadableFileError, UnsupportedFileError, import_stock_bytes
-from inventura.services import ConflictError, counting, documents, snapshots
-from inventura.web.dependencies import MappingDep, SessionDep, SettingsDep
+from inventura.io.reports import rules_text
+from inventura.services import ConflictError, counting, documents, snapshots, variances
+from inventura.services.documents import DocumentProgress
+from inventura.web.dependencies import MappingDep, RulesDep, SessionDep, SettingsDep
 from inventura.web.templating import templates
 
 router = APIRouter(include_in_schema=False)
@@ -95,7 +97,7 @@ def save_count(
         session.rollback()
         error = _message(exc)
         item = documents.get_item(session, item_id)
-    progress = documents.get_document(session, item.document_id)
+    progress, _ = _count_progress(session, item.document_id)
     context = {
         "item": item,
         "error": error,
@@ -195,12 +197,51 @@ def upload_count_sheet(
     return templates.TemplateResponse(request, "partials/upload_result.html", context)
 
 
-def _document_context(session: SessionDep, document_id: int) -> dict[str, Any]:
+@router.get("/documents/{document_id}/variances", response_class=HTMLResponse)
+def variances_page(
+    request: Request, document_id: int, session: SessionDep, rules: RulesDep
+) -> HTMLResponse:
+    """Variances for the count manager (not shown to counters, who count blind)."""
+    result = variances.document_variances(session, document_id, rules)
+    context = {
+        "result": result,
+        "document": result.progress.document,
+        "progress": result.progress,
+        "rules": rules_text(rules),
+        "last_round": result.current_round >= rules.max_rounds,
+        "oob": False,
+    }
+    return templates.TemplateResponse(request, "variances.html", context)
+
+
+@router.post("/documents/{document_id}/finish-round")
+def finish_round(document_id: int, session: SessionDep, rules: RulesDep) -> RedirectResponse:
+    variances.finish_round(session, document_id, rules, datetime.now(UTC))
+    session.commit()
+    return RedirectResponse(
+        f"/documents/{document_id}/variances", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+def _count_progress(session: SessionDep, document_id: int) -> tuple[DocumentProgress, int | None]:
+    """Progress shown to counters: of the whole document, or during a recount of just the
+    items sent to the recount. Also returns that round (None outside a recount)."""
     progress = documents.get_document(session, document_id)
+    if progress.document.status is not DocumentStatus.PONOVNO_STETJE:
+        return progress, None
+    this_round = documents.current_round(session, document_id)
+    items = documents.document_items(session, document_id, round_only=this_round)
+    counted = sum(item.presteta_kolicina is not None for item in items)
+    return DocumentProgress(progress.document, len(items), counted), this_round
+
+
+def _document_context(session: SessionDep, document_id: int) -> dict[str, Any]:
+    progress, recount_round = _count_progress(session, document_id)
     return {
         "document": progress.document,
         "progress": progress,
-        "items": documents.document_items(session, document_id),
+        "recount_round": recount_round,
+        "items": documents.document_items(session, document_id, round_only=recount_round),
         "closed": progress.document.status is DocumentStatus.ZAKLJUCEN,
     }
 

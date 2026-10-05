@@ -168,6 +168,20 @@ body.only-open table.count tr.counted { display: none; }
 .notice p { margin: 0 0 4px; }
 .notice.ok { background: var(--ok-bg); }
 .notice.error { background: var(--error-bg); }
+.notice.recount { background: var(--error-bg); border-left: 4px solid var(--error); }
+
+/* Variances (count manager). */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+.metric { padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.metric .label { display: block; color: var(--muted); font-size: 0.85rem; }
+.metric .value { display: block; font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.neg { color: var(--error); }
+.pos { color: var(--ok); }
+table.variances td.num { white-space: nowrap; }
+table.variances tr.recount { background: var(--error-bg); }
+table.variances tr.uncounted td { color: var(--muted); }
+body.only-diff table.variances tr.no-diff { display: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }
 table.errors { margin-top: 8px; font-size: 0.9rem; }
 
 @media (max-width: 700px) {

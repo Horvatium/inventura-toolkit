@@ -16,6 +16,11 @@
   <p class="muted">
     {{ summary.snapshot.uvozeno_ob | date }} · {{ summary.item_count }} postavk
   </p>
+  {% if docs %}
+  <p class="links">
+    <a href="/api/snapshots/{{ summary.snapshot.id }}/report.xlsx">Poročilo o razlikah (Excel)</a>
+  </p>
+  {% endif %}
   {% if not docs %}
   <form method="post" action="/snapshots/{{ summary.snapshot.id }}/documents">
     <button type="submit">Začni inventuro (en dokument na regal)</button>
@@ -24,14 +29,14 @@
   <div class="table-wrap">
   <table class="documents">
     <thead>
-      <tr><th>Št.</th><th>Regal</th><th>Status</th><th>Prešteto</th><th>Popisni list</th></tr>
+      <tr><th>Št.</th><th>Regal</th><th>Status</th><th>Prešteto</th><th>Popisni list</th><th>Vodja</th></tr>
     </thead>
     <tbody>
       {% for p in docs %}
       <tr>
         <td class="num">{{ p.document.zaporedna_st }}</td>
         <td><a class="rack" href="/documents/{{ p.document.id }}">{{ p.document.regal }}</a></td>
-        <td><span class="badge {{ p.document.status.value }}">{{ status_label(p.document.status) }}</span></td>
+        <td><span class="badge {{ p.document.status.value }}">{{ p.document.status.label }}</span></td>
         <td>
           {% include "partials/progress_bar.html" %}
         </td>
@@ -39,6 +44,7 @@
           <a href="/api/documents/{{ p.document.id }}/count-sheet.html" target="_blank">Natisni</a>
           <a href="/api/documents/{{ p.document.id }}/count-sheet.xlsx">Excel</a>
         </td>
+        <td class="links"><a href="/documents/{{ p.document.id }}/variances">Razlike</a></td>
       </tr>
       {% endfor %}
     </tbody>

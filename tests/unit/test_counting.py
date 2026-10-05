@@ -6,6 +6,8 @@ from inventura.core.counting import (
     CountError,
     DocumentClosedError,
     DocumentStatus,
+    ItemLockedError,
+    check_item_in_round,
     parse_counted_input,
     parse_found_location,
     status_after_count,
@@ -93,3 +95,14 @@ def test_found_quantity_follows_unit_rule() -> None:
     assert validate_found_quantity(Decimal("2.5"), "m") == Decimal("2.500")
     with pytest.raises(CountError, match="celo število"):
         validate_found_quantity(Decimal("2.5"), "kos")
+
+
+def test_only_the_recount_round_is_editable_during_a_recount() -> None:
+    check_item_in_round(DocumentStatus.PONOVNO_STETJE, 2, 2)
+    check_item_in_round(DocumentStatus.V_STETJU, 1, 1)
+    with pytest.raises(ItemLockedError, match="samo postavke za ponovno štetje"):
+        check_item_in_round(DocumentStatus.PONOVNO_STETJE, 1, 2)
+
+
+def test_status_labels() -> None:
+    assert [s.label for s in DocumentStatus] == ["Odprt", "V štetju", "Ponovno štetje", "Zaključen"]

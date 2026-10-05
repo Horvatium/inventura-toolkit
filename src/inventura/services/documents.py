@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy import ColumnElement, Select, exists, func, select
 from sqlalchemy.orm import Session, aliased, joinedload
 
+from inventura.core.counting import DocumentStatus
 from inventura.core.documents import RackDocument, split_by_rack
 from inventura.core.locations import Location
 from inventura.core.stock import StockRow
@@ -93,8 +94,23 @@ def get_document(session: Session, document_id: int) -> DocumentProgress:
     return DocumentProgress(*row)
 
 
-def document_items(session: Session, document_id: int) -> list[CountItem]:
-    """Items of the latest count round in walking order, with their material loaded."""
+def current_round(session: Session, document_id: int) -> int:
+    """The count round in progress: 1, or higher once items were sent to a recount."""
+    value = session.scalar(
+        select(func.coalesce(func.max(CountItem.krog), 1)).where(
+            CountItem.document_id == document_id
+        )
+    )
+    return int(value or 1)
+
+
+def document_items(
+    session: Session, document_id: int, round_only: int | None = None
+) -> list[CountItem]:
+    """Items of the latest count round in walking order, with their material loaded.
+
+    With round_only, just the items of that round (e.g. the ones sent to a recount).
+    """
     statement = (
         select(CountItem)
         .join(Material, CountItem.material_id == Material.id)
@@ -107,6 +123,8 @@ def document_items(session: Session, document_id: int) -> list[CountItem]:
             CountItem.sarza.asc().nulls_first(),
         )
     )
+    if round_only is not None:
+        statement = statement.where(CountItem.krog == round_only)
     return list(session.scalars(statement))
 
 
@@ -119,11 +137,14 @@ def get_item(session: Session, item_id: int) -> CountItem:
     return item
 
 
-def rack_document(session: Session, document_id: int) -> tuple[RackDocument, int]:
-    """The document as core sees it (for count sheets) and the number of documents in its
-    snapshot. Quantities and prices are the frozen ones."""
+def rack_document(session: Session, document_id: int) -> tuple[RackDocument, int, int]:
+    """The document as core sees it (for count sheets), the number of documents in its
+    snapshot and the round in progress. Quantities and prices are the frozen ones; during
+    a recount only the items sent to the recount are included."""
     progress = get_document(session, document_id)
     document = progress.document
+    this_round = current_round(session, document_id)
+    recount = document.status is DocumentStatus.PONOVNO_STETJE
     items = tuple(
         StockRow(
             row_number=0,
@@ -135,14 +156,14 @@ def rack_document(session: Session, document_id: int) -> tuple[RackDocument, int
             kolicina=item.knjizena_kolicina,
             cena_na_enoto=item.cena_na_enoto,
         )
-        for item in document_items(session, document_id)
+        for item in document_items(session, document_id, this_round if recount else None)
     )
     total = session.scalar(
         select(func.count())
         .select_from(CountDocument)
         .where(CountDocument.snapshot_id == document.snapshot_id)
     )
-    return RackDocument(document.zaporedna_st, document.regal, items), total or 0
+    return RackDocument(document.zaporedna_st, document.regal, items), total or 0, this_round
 
 
 def is_latest_round() -> ColumnElement[bool]:

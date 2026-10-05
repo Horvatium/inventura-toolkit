@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Razlike · regal {{ document.regal }} · Inventura{% endblock %}
+{% block topbar %}
+<span class="crumb">Razlike · regal {{ document.regal }}</span>
+{% endblock %}
+{% block content %}
+{% set s = result.summary %}
+<section class="card">
+  <div class="doc-head">
+    <div>
+      <h1>Razlike · regal {{ document.regal }}</h1>
+      <p class="muted">Dokument {{ document.zaporedna_st }} · uvoz {{ document.snapshot_id }} · krog {{ result.current_round }}</p>
+    </div>
+    {% include "partials/doc_progress.html" %}
+  </div>
+
+  <div class="summary-grid">
+    <div class="metric"><span class="label">Z razliko</span><span class="value">{{ s.with_difference }}</span></div>
+    <div class="metric"><span class="label">Za ponovno štetje</span><span class="value">{{ s.recount }}</span></div>
+    <div class="metric"><span class="label">Višek</span><span class="value pos">{{ s.surplus_value | money }}</span></div>
+    <div class="metric"><span class="label">Manjko</span><span class="value neg">{{ s.shortage_value | money }}</span></div>
+    <div class="metric"><span class="label">Neto razlika</span>
+      <span class="value {{ 'neg' if s.net_value < 0 else 'pos' if s.net_value > 0 }}">{{ s.net_value | money }}</span></div>
+  </div>
+
+  <p class="muted">{{ rules }}</p>
+
+  {% if document.status.value != "zakljucen" %}
+  <div class="actions">
+    {% if s.uncounted %}
+    <p class="notice">Krog še ni končan: nepreštetih postavk je {{ s.uncounted }}.</p>
+    {% else %}
+    <form method="post" action="/documents/{{ document.id }}/finish-round">
+      <button type="submit">
+        {% if s.recount and not last_round %}Zaključi krog in pošlji {{ s.recount }} v ponovno štetje
+        {% else %}Zaključi dokument{% endif %}
+      </button>
+    </form>
+    {% if s.recount and last_round %}
+    <p class="muted">To je zadnji dovoljeni krog, zato se preštete količine sprejmejo.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="notice ok">Dokument je zaključen{% if document.zakljucen_ob %} ({{ document.zakljucen_ob | date }}){% endif %}.</p>
+  {% endif %}
+</section>
+
+<label class="toggle"><input type="checkbox" id="only-diff"> Samo postavke z razliko</label>
+
+<div class="table-wrap">
+<table class="variances">
+  <thead>
+    <tr>
+      <th>Lokacija</th><th>Material</th><th>Šarža</th><th>ME</th>
+      <th class="num">Knjižna</th><th class="num">Prešteta</th><th class="num">Razlika</th>
+      <th class="num">Vrednost</th><th class="num">Odstopanje</th><th>Krog</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in result.items %}
+    {% set item = entry.item %}{% set v = entry.variance %}{% set unit = item.material.merska_enota %}
+    <tr class="{{ 'uncounted' if v is none else 'recount' if v.recount else '' }}{{ ' no-diff' if v is none or not v.has_difference }}">
+      <td class="loc">{{ item.lokacija }}</td>
+      <td class="material">
+        <span class="code">{{ item.material.sifra }}</span>
+        <span class="desc">{{ item.material.opis }}</span>
+        {% if item.najdeno %}<span class="tag">najdeno</span>{% endif %}
+      </td>
+      <td>{{ item.sarza or "" }}</td>
+      <td>{{ unit }}</td>
+      <td class="num">{{ item.knjizena_kolicina | quantity(unit) }}</td>
+      {% if v is none %}
+      <td class="num" colspan="4">ni prešteto</td>
+      {% else %}
+      <td class="num">{{ v.counted | quantity(unit) }}</td>
+      <td class="num {{ 'neg' if v.quantity < 0 else 'pos' if v.quantity > 0 }}">{{ ('+' if v.quantity > 0 else '') ~ (v.quantity | quantity(unit)) }}</td>
+      <td class="num {{ 'neg' if v.value < 0 else 'pos' if v.value > 0 }}">{{ v.value | money }}</td>
+      <td class="num">{{ v.percent | percent }}</td>
+      {% endif %}
+      <td>{{ item.krog }}{% if v and v.recount %} · <strong>ponovno</strong>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("only-diff").addEventListener("change", (event) => {
+  document.body.classList.toggle("only-diff", event.target.checked);
+});
+</script>
+{% endblock %}

@@ -10,10 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from inventura.core.counting import DocumentStatus
 from inventura.core.stock import RowError
+from inventura.core.variance import VarianceSummary
 from inventura.db.models import CountItem
 from inventura.services.counting import SheetImportSummary
 from inventura.services.documents import DocumentProgress
 from inventura.services.snapshots import SnapshotSummary
+from inventura.services.variances import DocumentVariances, ItemVariance, RoundResult
 
 
 class RowErrorOut(BaseModel):
@@ -162,4 +164,98 @@ class CountSheetImportOut(BaseModel):
             prepisano=summary.overwritten,
             najdeno=summary.found,
             brez_kolicine=summary.without_quantity,
+        )
+
+
+class VarianceItemOut(BaseModel):
+    id: int
+    sifra: str
+    opis: str
+    merska_enota: str
+    lokacija: str
+    sarza: str | None
+    krog: int
+    najdeno: bool
+    knjizena_kolicina: Decimal
+    presteta_kolicina: Decimal | None
+    cena_na_enoto: Decimal
+    razlika_kolicina: Decimal | None
+    razlika_vrednost: Decimal | None
+    odstopanje_odstotek: Decimal | None  # None when not counted or the book quantity is 0
+    ponovno_stetje: bool
+
+    @classmethod
+    def of(cls, entry: ItemVariance) -> "VarianceItemOut":
+        item, variance = entry.item, entry.variance
+        return cls(
+            id=item.id,
+            sifra=item.material.sifra,
+            opis=item.material.opis,
+            merska_enota=item.material.merska_enota,
+            lokacija=item.lokacija,
+            sarza=item.sarza,
+            krog=item.krog,
+            najdeno=item.najdeno,
+            knjizena_kolicina=item.knjizena_kolicina,
+            presteta_kolicina=item.presteta_kolicina,
+            cena_na_enoto=item.cena_na_enoto,
+            razlika_kolicina=variance.quantity if variance else None,
+            razlika_vrednost=variance.value if variance else None,
+            odstopanje_odstotek=variance.percent if variance else None,
+            ponovno_stetje=bool(variance and variance.recount),
+        )
+
+
+class VarianceSummaryOut(BaseModel):
+    postavk: int
+    presteto: int
+    nepresteto: int
+    z_razliko: int
+    za_ponovno_stetje: int
+    visek: Decimal
+    manjko: Decimal
+    neto: Decimal
+    absolutno: Decimal
+
+    @classmethod
+    def of(cls, summary: VarianceSummary) -> "VarianceSummaryOut":
+        return cls(
+            postavk=summary.items,
+            presteto=summary.counted,
+            nepresteto=summary.uncounted,
+            z_razliko=summary.with_difference,
+            za_ponovno_stetje=summary.recount,
+            visek=summary.surplus_value,
+            manjko=summary.shortage_value,
+            neto=summary.net_value,
+            absolutno=summary.absolute_value,
+        )
+
+
+class DocumentVariancesOut(DocumentOut):
+    trenutni_krog: int
+    povzetek: VarianceSummaryOut
+    postavke: list[VarianceItemOut]
+
+    @classmethod
+    def of_variances(cls, result: DocumentVariances) -> "DocumentVariancesOut":
+        return cls(
+            **DocumentOut.of(result.progress).model_dump(),
+            trenutni_krog=result.current_round,
+            povzetek=VarianceSummaryOut.of(result.summary),
+            postavke=[VarianceItemOut.of(entry) for entry in result.items],
+        )
+
+
+class RoundResultOut(BaseModel):
+    status: DocumentStatus
+    zakljuceni_krog: int
+    za_ponovno_stetje: int
+
+    @classmethod
+    def of(cls, result: RoundResult) -> "RoundResultOut":
+        return cls(
+            status=result.status,
+            zakljuceni_krog=result.finished_round,
+            za_ponovno_stetje=result.recount_items,
         )

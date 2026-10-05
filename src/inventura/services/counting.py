@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, joinedload
 from inventura.core.count_sheet_import import CountPosition, match_count_sheet
 from inventura.core.counting import (
     CountError,
+    DocumentStatus,
+    check_item_in_round,
     parse_found_location,
     status_after_count,
     validate_counted_quantity,
@@ -21,7 +23,7 @@ from inventura.core.stock import QUANTITY_SCALE, RowError, cell_text
 from inventura.db.models import CountDocument, CountItem, Material
 from inventura.io.count_sheet_reader import read_count_sheet
 from inventura.services import ConflictError, NotFoundError
-from inventura.services.documents import is_latest_round
+from inventura.services.documents import current_round, is_latest_round
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +62,7 @@ def record_count(
         raise ConflictError(f"postavka {item_id} je iz prejšnjega kroga štetja")
 
     status = status_after_count(document.status)
+    check_item_in_round(document.status, item.krog, current_round(session, document.id))
     value = validate_counted_quantity(quantity, item.material.merska_enota)
     _set_count(item, value, counter, now)
     document.status = status
@@ -109,6 +112,7 @@ def delete_found_item(session: Session, item_id: int) -> int:
         raise NotFoundError(f"postavka {item_id} ne obstaja")
     document = _lock_document(session, item.document_id)
     status_after_count(document.status)  # raises for a closed document
+    check_item_in_round(document.status, item.krog, current_round(session, document.id))
     if not item.najdeno:
         raise ConflictError("odstraniti je mogoče samo najdeno blago, knjižne postavke ostanejo")
     session.delete(item)
@@ -131,6 +135,7 @@ def import_count_sheet(
     document = _lock_document(session, document_id)
     status = status_after_count(document.status)
     rows = read_count_sheet(data, document.regal)
+    this_round = current_round(session, document_id)
 
     items = {
         item.id: item
@@ -149,6 +154,7 @@ def import_count_sheet(
             sarza=item.sarza,
             merska_enota=item.material.merska_enota,
             presteta_kolicina=item.presteta_kolicina,
+            locked=document.status is DocumentStatus.PONOVNO_STETJE and item.krog < this_round,
         )
         for item in items.values()
     ]
@@ -224,11 +230,6 @@ def _found_item(
     counter: str | None,
     now: datetime,
 ) -> CountItem:
-    current_round = session.scalar(
-        select(func.coalesce(func.max(CountItem.krog), 1)).where(
-            CountItem.document_id == document.id
-        )
-    )
     item = CountItem(
         document_id=document.id,
         material_id=material.id,
@@ -238,7 +239,7 @@ def _found_item(
         sarza=sarza,
         knjizena_kolicina=Decimal(0).quantize(Decimal(1).scaleb(-QUANTITY_SCALE)),
         cena_na_enoto=material.cena_na_enoto,
-        krog=current_round,
+        krog=current_round(session, document.id),
         najdeno=True,
     )
     _set_count(item, quantity, counter, now)

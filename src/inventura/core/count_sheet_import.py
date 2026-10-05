@@ -46,6 +46,7 @@ class CountPosition:
     sarza: str | None
     merska_enota: str
     presteta_kolicina: Decimal | None
+    locked: bool = False  # not part of the recount in progress
 
     @property
     def key(self) -> PositionKey:
@@ -134,7 +135,9 @@ def match_count_sheet(
 
         position = by_key.get(key)
         try:
-            if position is not None:
+            if position is not None and position.locked:
+                error(KOLICINA, row.kolicina, "postavka ni v ponovnem štetju")
+            elif position is not None:
                 value = check_quantity(quantity, position.merska_enota)
                 overwritten = position.presteta_kolicina not in (None, value)
                 result.updates.append(CountUpdate(position.item_id, value, overwritten))

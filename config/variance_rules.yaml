@@ -1,0 +1,14 @@
+# When a counted item goes back for a recount (second round).
+#
+#   recount if (|value| >= min_value AND |percent| >= min_percent)
+#           OR |value| >= always_value
+#
+# value   = (counted - book) * unit price, in EUR
+# percent = (counted - book) / book * 100
+# With a book quantity of 0 there is no percentage and only min_value decides.
+# After round max_rounds the counted quantity is accepted and the document is closed.
+
+min_value: 50.00
+min_percent: 5
+always_value: 500.00
+max_rounds: 2

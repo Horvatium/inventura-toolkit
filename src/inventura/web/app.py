@@ -7,9 +7,10 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from inventura.core.counting import CountError, DocumentClosedError
+from inventura.core.counting import CountError, DocumentClosedError, ItemLockedError
 from inventura.db.session import make_engine, make_session_factory
 from inventura.io.column_mapping import load_column_mapping
+from inventura.io.variance_rules import load_variance_rules
 from inventura.services import ConflictError, NotFoundError
 from inventura.settings import Settings, get_settings
 from inventura.web.routes import api, pages
@@ -21,6 +22,7 @@ ERROR_STATUS: dict[type[Exception], int] = {
     NotFoundError: status.HTTP_404_NOT_FOUND,
     ConflictError: status.HTTP_409_CONFLICT,
     DocumentClosedError: status.HTTP_409_CONFLICT,
+    ItemLockedError: status.HTTP_409_CONFLICT,
     CountError: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
@@ -35,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = make_session_factory(make_engine(settings.database_url))
     app.state.column_mapping = load_column_mapping(settings.column_mapping)
+    app.state.variance_rules = load_variance_rules(settings.variance_rules)
     app.include_router(api.router)
     app.include_router(pages.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

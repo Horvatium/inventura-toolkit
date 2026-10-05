@@ -31,6 +31,7 @@ class SheetOptions:
     created: date
     total_documents: int
     show_book_quantity: bool = False
+    count_round: int = 1  # above 1: the sheet lists only the items sent to a recount
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,8 +68,9 @@ def columns(show_book_quantity: bool) -> list[_Column]:
     return result
 
 
-def document_title(document: RackDocument) -> str:
-    return f"Popisni list – regal {document.rack}"
+def document_title(document: RackDocument, count_round: int = 1) -> str:
+    title = f"Popisni list – regal {document.rack}"
+    return title if count_round == 1 else f"{title} – ponovno štetje (krog {count_round})"
 
 
 def write_count_sheets_xlsx(
@@ -103,7 +105,7 @@ def render_count_sheets_html(documents: Sequence[RackDocument], options: SheetOp
         show_book_quantity=options.show_book_quantity,
         created=format_date(options.created),
         total_documents=options.total_documents,
-        title=document_title,
+        title=lambda document: document_title(document, options.count_round),
         new_level=_new_level_flags,
     )
 
@@ -128,7 +130,7 @@ def _write_sheet(sheet: Worksheet, document: RackDocument, options: SheetOptions
     cols = columns(options.show_book_quantity)
     count_col = next(i for i, c in enumerate(cols, start=1) if c.title == COUNT_COLUMN_TITLE)
 
-    sheet["A1"] = document_title(document)
+    sheet["A1"] = document_title(document, options.count_round)
     sheet["A1"].font = Font(bold=True, size=14)
     sheet["A2"] = (
         f"Dokument {document.number} od {options.total_documents} · "

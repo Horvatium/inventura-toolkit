@@ -1,6 +1,7 @@
-"""Command line interface: ``inventura generate``, ``import``, ``sheets`` and ``serve``."""
+"""Command line interface: ``inventura generate``, ``import``, ``sheets``, ``report``, ``serve``."""
 
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -140,6 +141,41 @@ def sheets(
         )
     typer.echo(f"Popisni listi ({len(selected)} od {len(documents)}): {xlsx_path}")
     typer.echo(f"Stran za tisk: {html_path}")
+
+
+@app.command()
+def report(
+    snapshot_id: Annotated[int, typer.Argument(help="Id of the stock import (snapshot).")],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Target .xlsx file.")
+    ] = None,
+) -> None:
+    """Write the Excel variance report of an inventory from the database."""
+    from inventura.db.session import make_engine, make_session_factory
+    from inventura.io.reports import write_variance_report
+    from inventura.io.variance_rules import load_variance_rules
+    from inventura.services import ConflictError, NotFoundError
+    from inventura.services.variances import snapshot_report
+    from inventura.settings import get_settings
+
+    settings = get_settings()
+    rules = load_variance_rules(settings.variance_rules)
+    target = output or Path("output") / f"porocilo_razlik_uvoz_{snapshot_id}.xlsx"
+    engine = make_engine(settings.database_url)
+    try:
+        with make_session_factory(engine)() as session:
+            racks, header = snapshot_report(session, snapshot_id, rules, date.today())
+    except (NotFoundError, ConflictError) as exc:
+        _fail(f"Poročila ni mogoče pripraviti: {exc}")
+    finally:
+        engine.dispose()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_variance_report(racks, header, str(target))
+    total = sum((rack.summary.net_value for rack in racks), start=Decimal(0))
+    typer.echo(
+        f"Poročilo o razlikah: {target} (regalov: {len(racks)}, neto razlika: "
+        f"{format_decimal(total, 2)} €)"
+    )
 
 
 @app.command()
