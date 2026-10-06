@@ -18,10 +18,12 @@ from inventura.io.count_sheets import (
     render_count_sheets_html,
     write_count_sheets_xlsx,
 )
+from inventura.io.erp_export import erp_zip, erp_zip_name
 from inventura.io.importer import UnreadableFileError, UnsupportedFileError, import_stock_bytes
 from inventura.io.reports import write_variance_report
 from inventura.services import counting, documents, snapshots, variances
 from inventura.services.dashboard import build_dashboard
+from inventura.services.erp_export import build_erp_export
 from inventura.web.dependencies import MappingDep, RulesDep, SessionDep, SettingsDep
 from inventura.web.schemas import (
     CountIn,
@@ -288,6 +290,27 @@ def variance_report(snapshot_id: int, session: SessionDep, rules: RulesDep) -> R
 def dashboard(snapshot_id: int, session: SessionDep) -> DashboardOut:
     """Progress by rack, the largest variances by value and the total value of variances."""
     return DashboardOut.of(build_dashboard(session, snapshot_id))
+
+
+@router.get(
+    "/snapshots/{snapshot_id}/erp-export.zip",
+    tags=["erp"],
+    response_class=Response,
+    responses={
+        200: {"content": {"application/zip": {}}},
+        409: {"description": "No count document of the import is closed yet"},
+    },
+)
+def erp_export(snapshot_id: int, session: SessionDep) -> Response:
+    """Batch upload for an ERP (simulated format): document creation and count entry
+    as two CSV files, plus a summary. Only closed documents are included."""
+    export = build_erp_export(session, snapshot_id)
+    data = erp_zip(export.snapshot, export.documents, export.skipped, datetime.now().astimezone())
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{erp_zip_name(snapshot_id)}"'},
+    )
 
 
 def _rejected(detail: str, errors: Sequence[RowError]) -> JSONResponse:

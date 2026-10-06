@@ -12,6 +12,7 @@
   <p class="links">
     <span class="muted">Osveženo ob {{ refreshed.strftime("%H:%M:%S") }}</span>
     <a href="/api/snapshots/{{ snapshot.id }}/report.xlsx">Poročilo (Excel)</a>
+    {% if dashboard.closed %}<a href="/api/snapshots/{{ snapshot.id }}/erp-export.zip">Izvoz za ERP</a>{% endif %}
   </p>
 </section>
 

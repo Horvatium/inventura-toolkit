@@ -1,4 +1,5 @@
-"""Command line interface: ``inventura generate``, ``import``, ``sheets``, ``report``, ``serve``."""
+"""Command line interface: ``inventura generate``, ``import``, ``sheets``, ``report``,
+``erp-export`` and ``serve``."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -7,6 +8,7 @@ from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
+from sqlalchemy.exc import OperationalError
 
 from inventura import generator
 from inventura.core.documents import split_by_rack
@@ -27,6 +29,10 @@ from inventura.io.importer import (
 )
 
 DEFAULT_MAPPING = Path("config/column_mapping.yaml")
+DATABASE_UNREACHABLE = (
+    "Baza ni dosegljiva. Lokalno jo zaženi z: docker compose up -d db "
+    "(ali nastavi INVENTURA_DATABASE_URL)."
+)
 
 app = typer.Typer(help="Warehouse stock count toolkit.", no_args_is_help=True)
 
@@ -167,6 +173,8 @@ def report(
             racks, header = snapshot_report(session, snapshot_id, rules, date.today())
     except (NotFoundError, ConflictError) as exc:
         _fail(f"Poročila ni mogoče pripraviti: {exc}")
+    except OperationalError:
+        _fail(DATABASE_UNREACHABLE)
     finally:
         engine.dispose()
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +183,42 @@ def report(
     typer.echo(
         f"Poročilo o razlikah: {target} (regalov: {len(racks)}, neto razlika: "
         f"{format_decimal(total, 2)} €)"
+    )
+
+
+@app.command("erp-export")
+def erp_export(
+    snapshot_id: Annotated[int, typer.Argument(help="Id of the stock import (snapshot).")],
+    output_dir: Annotated[
+        Path, typer.Option("--output-dir", "-o", file_okay=False, help="Where to write the ZIP.")
+    ] = Path("output"),
+) -> None:
+    """Write the ERP batch upload (simulated format) for the closed count documents."""
+    from inventura.db.session import make_engine, make_session_factory
+    from inventura.io.erp_export import erp_zip, erp_zip_name
+    from inventura.services import ConflictError, NotFoundError
+    from inventura.services.erp_export import build_erp_export
+    from inventura.settings import get_settings
+
+    engine = make_engine(get_settings().database_url)
+    try:
+        with make_session_factory(engine)() as session:
+            export = build_erp_export(session, snapshot_id)
+    except (NotFoundError, ConflictError) as exc:
+        _fail(f"Izvoza ni mogoče pripraviti: {exc}")
+    except OperationalError:
+        _fail(DATABASE_UNREACHABLE)
+    finally:
+        engine.dispose()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    target = output_dir / erp_zip_name(snapshot_id)
+    target.write_bytes(
+        erp_zip(export.snapshot, export.documents, export.skipped, datetime.now().astimezone())
+    )
+    items = sum(len(document.items) for document in export.documents)
+    typer.echo(
+        f"Izvoz za ERP: {target} (dokumentov: {len(export.documents)}, postavk: {items}, "
+        f"izpuščenih regalov: {len(export.skipped)})"
     )
 
 

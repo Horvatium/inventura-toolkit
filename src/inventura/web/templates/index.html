@@ -20,6 +20,7 @@
   <p class="links">
     <a href="/dashboard/{{ summary.snapshot.id }}">Nadzorna plošča</a>
     <a href="/api/snapshots/{{ summary.snapshot.id }}/report.xlsx">Poročilo o razlikah (Excel)</a>
+    <a href="/api/snapshots/{{ summary.snapshot.id }}/erp-export.zip">Izvoz za ERP (zaključeni regali)</a>
   </p>
   {% endif %}
   {% if not docs %}
