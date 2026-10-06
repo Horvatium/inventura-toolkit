@@ -15,6 +15,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -53,3 +54,31 @@ jobs:
 
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
+
+  docker:
+    # The image builds and `docker compose up` serves the demo inventory.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build app
+
+      - name: Start app and database
+        run: docker compose up --detach --wait --wait-timeout 180
+
+      - name: Smoke test
+        run: |
+          curl --fail --silent http://localhost:8000/api/health
+          curl --fail --silent --output /dev/null http://localhost:8000/dashboard/1
+          curl --fail --silent http://localhost:8000/api/snapshots/1/dashboard \
+            | python3 -c "import json, sys; d = json.load(sys.stdin); assert d['dokumentov'] == 12, d"
+
+      - name: Logs
+        if: always()
+        run: docker compose logs app
+
+      - name: Stop
+        if: always()
+        run: docker compose down --volumes

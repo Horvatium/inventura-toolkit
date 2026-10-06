@@ -1,0 +1,17 @@
+# Only what the image needs is copied explicitly; keep the build context small.
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.hypothesis
+.coverage
+htmlcov
+output
+docs
+tests
+sample_data
+**/__pycache__
+*.pyc
+.env

@@ -1,3 +1,5 @@
+# docker compose up        -> the app with demo data on http://localhost:8000
+# docker compose up -d db  -> only PostgreSQL, for local development and tests
 services:
   db:
     image: postgres:16
@@ -6,7 +8,8 @@ services:
       POSTGRES_PASSWORD: inventura # local development only
       POSTGRES_DB: inventura
     ports:
-      - "5433:5432" # 5433 on the host, so a locally installed PostgreSQL can keep 5432
+      # 5433 on the host, so a locally installed PostgreSQL can keep 5432.
+      - "${INVENTURA_DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -15,6 +18,18 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  app:
+    build: .
+    image: inventura-toolkit:latest
+    environment:
+      INVENTURA_DATABASE_URL: postgresql+psycopg://inventura:inventura@db:5432/inventura
+      INVENTURA_DEMO: "1" # fill an empty database with a fictional inventory
+    ports:
+      - "${INVENTURA_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:

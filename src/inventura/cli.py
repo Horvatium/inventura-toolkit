@@ -1,5 +1,5 @@
 """Command line interface: ``inventura generate``, ``import``, ``sheets``, ``report``,
-``erp-export`` and ``serve``."""
+``erp-export``, ``demo`` and ``serve``."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -219,6 +219,43 @@ def erp_export(
     typer.echo(
         f"Izvoz za ERP: {target} (dokumentov: {len(export.documents)}, postavk: {items}, "
         f"izpuščenih regalov: {len(export.skipped)})"
+    )
+
+
+@app.command()
+def demo(
+    materials: Annotated[int, typer.Option(min=1, help="Number of materials.")] = 2000,
+    seed: Annotated[int, typer.Option(help="Random seed; the same seed gives the same data.")] = 42,
+) -> None:
+    """Fill an empty database with a fictional inventory in progress (does nothing otherwise)."""
+    from inventura.db.session import make_engine, make_session_factory
+    from inventura.demo import seed_demo
+    from inventura.io.variance_rules import load_variance_rules
+    from inventura.settings import get_settings
+
+    settings = get_settings()
+    engine = make_engine(settings.database_url)
+    try:
+        with make_session_factory(engine)() as session:
+            result = seed_demo(
+                session,
+                load_column_mapping(settings.column_mapping),
+                load_variance_rules(settings.variance_rules),
+                materials=materials,
+                seed=seed,
+            )
+            session.commit()
+    except OperationalError:
+        _fail(DATABASE_UNREACHABLE)
+    finally:
+        engine.dispose()
+    if result is None:
+        typer.echo("Baza že vsebuje uvoze, demo podatki niso dodani.")
+        return
+    statuses = ", ".join(f"{status.label}: {n}" for status, n in sorted(result.statuses.items()))
+    typer.echo(
+        f"Demo inventura: uvoz {result.snapshot_id}, postavk: {result.items}, "
+        f"dokumentov: {result.documents} ({statuses})"
     )
 
 
