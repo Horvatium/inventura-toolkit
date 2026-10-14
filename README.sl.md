@@ -1,5 +1,7 @@
 # Inventura Toolkit
 
+[![CI](https://github.com/Horvatium/inventura-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Horvatium/inventura-toolkit/actions/workflows/ci.yml)
+
 *[English](README.md)*
 
 Inventura v skladišču še vedno poteka prek preglednic in ročnega prepisovanja. To orodje
@@ -35,16 +37,44 @@ paketni vnos nazaj v ERP (na primer SAP MM).
 
 ## Hiter začetek
 
-Potrebuješ Docker. https://www.docker.com/products/docker-desktop/
+Potrebuješ [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows,
+macOS ali Linux). Zaženi ga in počakaj, da pokaže, da pogon teče (Engine running).
 
-```bash
-docker compose up --build
-```
+1. Prenesi kodo: `git clone https://github.com/Horvatium/inventura-toolkit.git` ali na tej
+   strani **Code → Download ZIP** in razpakiraj.
+2. Odpri terminal (ukazni poziv, PowerShell ali Terminal) **v mapi projekta**
+   (iz ZIP-a se imenuje `inventura-toolkit-main`):
 
-Odpri <http://localhost:8000>. Ob prvem zagonu se izvedejo migracije in baza se napolni z
-izmišljeno inventuro v teku: nekateri regali so zaključeni, nekateri v ponovnem štetju,
-nekateri se še štejejo. Prijave ni (glej [Omejitve](#omejitve)). Dokumentacija API je na
+   ```bash
+   cd inventura-toolkit
+   ```
+
+3. Zgradi in zaženi aplikacijo:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   Prvi zagon prenese Python, PostgreSQL in pakete ter traja nekaj minut; naslednji zagoni
+   trajajo nekaj sekund. Aplikacija je pripravljena, ko se v izpisu pojavi
+   `Uvicorn running on http://0.0.0.0:8000`.
+4. Odpri <http://localhost:8000>.
+
+Ob prvem zagonu se baza napolni z izmišljeno inventuro v teku, zato je takoj kaj videti.
+Prijave ni (glej [Omejitve](#omejitve)). Dokumentacija API je na
 <http://localhost:8000/docs>.
+
+**Ustaviš** s `Ctrl+C`; `docker compose up` jo znova zažene z istimi podatki.
+`docker compose down -v` odstrani vsebnike in bazo; naslednji zagon ustvari novo demo
+inventuro.
+
+**Vrata 8000 so zasedena?** Izberi druga in odpri ta vrata:
+
+| Lupina | Ukaz |
+|---|---|
+| Ukazni poziv | `set INVENTURA_PORT=8080` in nato `docker compose up --build` |
+| PowerShell | `$env:INVENTURA_PORT=8080; docker compose up --build` |
+| macOS / Linux | `INVENTURA_PORT=8080 docker compose up --build` |
 
 <details>
 <summary>Za posrednikom ali protivirusnim programom, ki pregleduje HTTPS</summary>
@@ -57,6 +87,23 @@ docker build --secret id=extra_ca,src=root-ca.pem -t inventura-toolkit .
 docker compose up
 ```
 </details>
+
+### Kaj preizkusiti
+
+1. **Nadzorna plošča.** V zgornji vrstici klikni »Nadzorna plošča«: napredek po regalih,
+   največje razlike in njihova skupna vrednost. Sama se osveži vsakih 30 sekund.
+2. **Štetje na tablici.** Na domači strani (»Uvozi«) klikni regal **B6** (status
+   »V štetju«). V »Števec« vpiši ime, označi »Samo nepreštete«, vpiši količino in pritisni
+   Enter: vrstica se obarva zeleno, kazalec skoči v naslednje polje, napredek se poveča.
+   Vpiši `1,5` pri postavki v »kos«, da vidiš opozorilo. Zoži okno brskalnika, da vidiš
+   postavitev za tablico ali telefon.
+3. **Ponovno štetje in zaključek.** Regal **B4** je v ponovnem štetju: odpri ga, preštej
+   njegovih nekaj postavk, nato odpri »Razlike« za B4 in pritisni »Zaključi dokument«.
+4. **Razlike.** »Razlike« ob regalu **B1** (zaključen): knjižna proti prešteti količini,
+   vrednost vsake razlike in krog, v katerem je bila prešteta.
+5. **Datoteke.** »Natisni« in »Excel« ob regalu dasta popisni list;
+   »Poročilo o razlikah (Excel)« je poročilo o razlikah, »Izvoz za ERP« pa ZIP z datotekami
+   CSV za paketni vnos v ERP.
 
 ## Odločitve pri zasnovi
 

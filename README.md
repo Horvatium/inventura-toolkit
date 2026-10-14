@@ -1,5 +1,7 @@
 # Inventura Toolkit
 
+[![CI](https://github.com/Horvatium/inventura-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Horvatium/inventura-toolkit/actions/workflows/ci.yml)
+
 *[Slovenščina](README.sl.md)*
 
 Warehouse stock counts still run through spreadsheets and manual re-keying. This tool
@@ -37,16 +39,44 @@ The user interface is in Slovenian, the language of the warehouse it was built f
 
 ## Quick start
 
-Needs Docker. https://www.docker.com/products/docker-desktop/
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS
+or Linux). Start it and wait until it shows that the engine is running.
 
-```bash
-docker compose up --build
-```
+1. Get the code: `git clone https://github.com/Horvatium/inventura-toolkit.git`, or on
+   this page **Code → Download ZIP** and unpack it.
+2. Open a terminal (Command Prompt, PowerShell or Terminal) **in the project folder**
+   (from the ZIP it is called `inventura-toolkit-main`):
 
-Open <http://localhost:8000>. On the first start the database is migrated and filled with
-a fictional inventory in progress: some racks closed, some in a recount, some still being
-counted. There is no login (see [Limitations](#limitations)). The API documentation is at
-<http://localhost:8000/docs>.
+   ```bash
+   cd inventura-toolkit
+   ```
+
+3. Build and start the application:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   The first start downloads Python, PostgreSQL and the packages and takes a few minutes;
+   later starts take seconds. The application is ready when the output shows
+   `Uvicorn running on http://0.0.0.0:8000`.
+4. Open <http://localhost:8000>.
+
+On the first start the database is filled with a fictional inventory in progress, so
+there is something to look at right away. There is no login (see
+[Limitations](#limitations)). The API documentation is at <http://localhost:8000/docs>.
+
+**Stop** with `Ctrl+C`; `docker compose up` starts it again with the same data.
+`docker compose down -v` removes the containers and the database; the next start
+creates a fresh demo inventory.
+
+**Port 8000 already in use?** Choose another one, then open that port instead:
+
+| Shell | Command |
+|---|---|
+| Command Prompt | `set INVENTURA_PORT=8080` and then `docker compose up --build` |
+| PowerShell | `$env:INVENTURA_PORT=8080; docker compose up --build` |
+| macOS / Linux | `INVENTURA_PORT=8080 docker compose up --build` |
 
 <details>
 <summary>Behind a proxy or an antivirus that inspects HTTPS</summary>
@@ -59,6 +89,36 @@ docker build --secret id=extra_ca,src=root-ca.pem -t inventura-toolkit .
 docker compose up
 ```
 </details>
+
+### What to try
+
+The interface is in Slovenian; the words to look for are in quotes.
+
+| Slovenian | English |
+|---|---|
+| Uvozi | imports (home page) |
+| Nadzorna plošča | dashboard |
+| Regal | rack |
+| Odprt · V štetju · Ponovno štetje · Zaključen | open · counting · recount · closed |
+| Razlike | variances |
+| Natisni | print |
+| Števec | counter (the person counting) |
+
+1. **Dashboard.** Click "Nadzorna plošča" in the top bar: progress by rack, the largest
+   variances and their total value. It refreshes itself every 30 seconds.
+2. **Count on a tablet.** On the home page ("Uvozi") click rack **B6** (status
+   "V štetju"). Type a name into "Števec", tick "Samo nepreštete" (only uncounted), type a
+   quantity and press Enter: the row turns green, the next field gets the focus and the
+   progress goes up. Type `1,5` for an item in "kos" (pieces) to see a validation message.
+   Narrow the browser window to see the layout for a tablet or phone.
+3. **Recount and closing.** Rack **B4** is in a recount ("Ponovno štetje"): open it, count
+   its few items, then open "Razlike" for B4 and press "Zaključi dokument" (close the
+   document).
+4. **Variances.** "Razlike" next to rack **B1** (closed): book against counted quantity,
+   the value of each difference and the round it was counted in.
+5. **Files.** "Natisni" and "Excel" next to a rack give the count sheet;
+   "Poročilo o razlikah (Excel)" is the variance report and "Izvoz za ERP" the ZIP with
+   the CSV files for an ERP batch upload.
 
 ## Design decisions
 
