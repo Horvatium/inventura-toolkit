@@ -35,7 +35,7 @@ paketni vnos nazaj v ERP (na primer SAP MM).
 
 ## Hiter začetek
 
-Potrebuješ Docker.
+Potrebuješ Docker. https://www.docker.com/products/docker-desktop/
 
 ```bash
 docker compose up --build
