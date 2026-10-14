@@ -37,7 +37,7 @@ The user interface is in Slovenian, the language of the warehouse it was built f
 
 ## Quick start
 
-Needs Docker.
+Needs Docker. https://www.docker.com/products/docker-desktop/
 
 ```bash
 docker compose up --build
